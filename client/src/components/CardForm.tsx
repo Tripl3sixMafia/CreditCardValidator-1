@@ -86,20 +86,20 @@ export default function CardForm({
     <form className="px-6 py-4" onSubmit={handleSubmit}>
       {/* Card Number */}
       <div className="mb-4">
-        <label htmlFor="card-number" className="block text-zinc-300 text-sm font-medium mb-1">
+        <label htmlFor="card-number" className="block text-slate-300 text-sm font-medium mb-1">
           Card Number
         </label>
         <div className="relative">
           <input 
             type="text" 
             id="card-number" 
-            className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all text-white" 
+            className="w-full px-4 py-2 bg-slate-800/70 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-white shadow-inner" 
             placeholder="1234 5678 9012 3456" 
             maxLength={19} 
             value={cardState.number}
             onChange={handleCardNumberChange}
           />
-          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400">
+          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 font-semibold">
             {cardState.cardType && cardTypes[cardState.cardType]?.logo}
           </div>
         </div>
@@ -110,13 +110,13 @@ export default function CardForm({
 
       {/* Card Holder */}
       <div className="mb-4">
-        <label htmlFor="card-holder" className="block text-zinc-300 text-sm font-medium mb-1">
+        <label htmlFor="card-holder" className="block text-slate-300 text-sm font-medium mb-1">
           Card Holder Name
         </label>
         <input 
           type="text" 
           id="card-holder" 
-          className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all text-white" 
+          className="w-full px-4 py-2 bg-slate-800/70 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-white shadow-inner" 
           placeholder="Full Name on Card"
           value={cardState.holder}
           onChange={(e) => updateCardState({ holder: e.target.value })}
@@ -124,15 +124,15 @@ export default function CardForm({
       </div>
 
       {/* Expiry Date and CVV */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-2 gap-4 mb-5">
         <div>
-          <label htmlFor="expiry-date" className="block text-zinc-300 text-sm font-medium mb-1">
+          <label htmlFor="expiry-date" className="block text-slate-300 text-sm font-medium mb-1">
             Expiry Date
           </label>
           <input 
             type="text" 
             id="expiry-date" 
-            className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all text-white" 
+            className="w-full px-4 py-2 bg-slate-800/70 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-white shadow-inner" 
             placeholder="MM/YY" 
             maxLength={5}
             value={cardState.expiry}
@@ -143,13 +143,13 @@ export default function CardForm({
           )}
         </div>
         <div>
-          <label htmlFor="cvv" className="block text-zinc-300 text-sm font-medium mb-1">
+          <label htmlFor="cvv" className="block text-slate-300 text-sm font-medium mb-1">
             CVV
           </label>
           <input 
             type="text" 
             id="cvv" 
-            className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500/50 transition-all text-white" 
+            className="w-full px-4 py-2 bg-slate-800/70 border border-slate-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-white shadow-inner" 
             placeholder="123" 
             maxLength={4}
             value={cardState.cvv}
@@ -164,7 +164,7 @@ export default function CardForm({
       <button 
         type="submit" 
         disabled={isLoading}
-        className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-800 hover:to-red-700 text-white py-3 px-4 rounded-md transition-colors font-bold shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
+        className="w-full bg-gradient-to-r from-blue-700 to-blue-600 hover:from-blue-800 hover:to-blue-700 text-white py-3 px-4 rounded-md transition-colors font-bold shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
       >
         {isLoading ? (
           <span className="flex items-center justify-center">
@@ -175,7 +175,7 @@ export default function CardForm({
             Validating...
           </span>
         ) : (
-          'Check Card'
+          'Validate Card'
         )}
       </button>
     </form>
