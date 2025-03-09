@@ -1,9 +1,12 @@
 import { CardState } from "@/types/card";
 
-// Card Type Definitions
+// Card Type Definitions with expanded bank information
 export const cardTypes: Record<string, {
   pattern: RegExp;
   logo: string;
+  bankName?: string;
+  bankLogo?: string;
+  backgroundStyle?: string;
   lengths: number[];
   cvvLength: number;
   color: string;
@@ -11,6 +14,8 @@ export const cardTypes: Record<string, {
   visa: {
     pattern: /^4/,
     logo: 'VISA',
+    bankName: 'Visa',
+    backgroundStyle: 'bg-gradient-to-r from-blue-600 to-blue-800',
     lengths: [16],
     cvvLength: 3,
     color: 'from-blue-800 to-blue-600'
@@ -18,6 +23,8 @@ export const cardTypes: Record<string, {
   mastercard: {
     pattern: /^(5[1-5]|2[2-7])/,
     logo: 'MC',
+    bankName: 'Mastercard',
+    backgroundStyle: 'bg-gradient-to-r from-red-600 to-red-800',
     lengths: [16],
     cvvLength: 3,
     color: 'from-red-600 to-orange-600'
@@ -25,6 +32,8 @@ export const cardTypes: Record<string, {
   amex: {
     pattern: /^3[47]/,
     logo: 'AMEX',
+    bankName: 'American Express',
+    backgroundStyle: 'bg-gradient-to-r from-slate-600 to-slate-800',
     lengths: [15],
     cvvLength: 4,
     color: 'from-slate-800 to-slate-600'
@@ -32,16 +41,111 @@ export const cardTypes: Record<string, {
   discover: {
     pattern: /^6(?:011|5)/,
     logo: 'DISC',
+    bankName: 'Discover',
+    backgroundStyle: 'bg-gradient-to-r from-orange-500 to-orange-700',
     lengths: [16],
     cvvLength: 3,
     color: 'from-orange-500 to-orange-400'
   },
+  jcb: {
+    pattern: /^35(?:2[89]|[3-8][0-9])/,
+    logo: 'JCB',
+    bankName: 'JCB',
+    backgroundStyle: 'bg-gradient-to-r from-green-600 to-green-800',
+    lengths: [16],
+    cvvLength: 3,
+    color: 'from-green-600 to-green-800'
+  },
+  diners: {
+    pattern: /^3(?:0[0-5]|[68][0-9])[0-9]/,
+    logo: 'DINC',
+    bankName: 'Diners Club',
+    backgroundStyle: 'bg-gradient-to-r from-blue-400 to-blue-600',
+    lengths: [14, 16],
+    cvvLength: 3,
+    color: 'from-blue-400 to-blue-600'
+  },
+  unionpay: {
+    pattern: /^(62|88)/,
+    logo: 'UP',
+    bankName: 'UnionPay',
+    backgroundStyle: 'bg-gradient-to-r from-red-700 to-red-900',
+    lengths: [16, 17, 18, 19],
+    cvvLength: 3,
+    color: 'from-red-700 to-red-900'
+  },
+  maestro: {
+    pattern: /^(5018|5020|5038|6304|6759|6761|6763)/,
+    logo: 'MAES',
+    bankName: 'Maestro',
+    backgroundStyle: 'bg-gradient-to-r from-blue-500 to-blue-700',
+    lengths: [13, 15, 16, 18, 19],
+    cvvLength: 3,
+    color: 'from-blue-500 to-blue-700'
+  },
+  // Add more specific banks based on BIN ranges
+  chase: {
+    pattern: /^4147[0-9]{6}/,
+    logo: 'CHASE',
+    bankName: 'Chase Bank',
+    backgroundStyle: 'bg-gradient-to-r from-blue-900 to-blue-950',
+    lengths: [16],
+    cvvLength: 3,
+    color: 'from-blue-800 to-blue-950'
+  },
+  citibank: {
+    pattern: /^(4128|4502|4527|8123)/,
+    logo: 'CITI',
+    bankName: 'Citibank',
+    backgroundStyle: 'bg-gradient-to-r from-blue-600 to-indigo-800',
+    lengths: [16],
+    cvvLength: 3,
+    color: 'from-blue-600 to-indigo-800'
+  },
+  bofa: {
+    pattern: /^4(1|0|8)[0-9]{2}(1|0|8)[0-9]{10}$/,
+    logo: 'BOFA',
+    bankName: 'Bank of America',
+    backgroundStyle: 'bg-gradient-to-r from-red-700 to-red-950',
+    lengths: [16],
+    cvvLength: 3,
+    color: 'from-red-700 to-red-950'
+  },
+  wells: {
+    pattern: /^4465[0-9]{2}|^4465[0-9]{2}/,
+    logo: 'WF',
+    bankName: 'Wells Fargo',
+    backgroundStyle: 'bg-gradient-to-r from-red-600 to-red-800',
+    lengths: [16],
+    cvvLength: 3,
+    color: 'from-red-600 to-red-800'
+  },
+  amex_gold: {
+    pattern: /^3712/,
+    logo: 'AMEXG',
+    bankName: 'Amex Gold',
+    backgroundStyle: 'bg-gradient-to-r from-yellow-600 to-yellow-800',
+    lengths: [15],
+    cvvLength: 4,
+    color: 'from-yellow-600 to-yellow-800'
+  },
+  amex_platinum: {
+    pattern: /^3782/,
+    logo: 'AMEXP',
+    bankName: 'Amex Platinum',
+    backgroundStyle: 'bg-gradient-to-r from-slate-400 to-slate-600',
+    lengths: [15],
+    cvvLength: 4,
+    color: 'from-slate-400 to-slate-600'
+  },
   unknown: {
     pattern: /.*/, // Match anything
     logo: '?',
+    bankName: 'Unknown',
+    backgroundStyle: 'bg-gradient-to-r from-slate-800 to-slate-900',
     lengths: [16, 17, 18, 19],
     cvvLength: 3,
-    color: 'from-gray-700 to-gray-900'
+    color: 'from-slate-800 to-slate-900'
   }
 };
 

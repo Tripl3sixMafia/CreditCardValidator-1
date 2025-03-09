@@ -1,15 +1,19 @@
+import { useState } from "react";
 import CreditCardValidator from "@/components/CreditCardValidator";
+import BulkCardValidator from "@/components/BulkCardValidator";
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single');
+  
   return (
-    <div className="bg-gradient-to-b from-slate-950 to-blue-950 min-h-screen flex flex-col items-center justify-center p-4 font-sans text-white">
+    <div className="bg-gradient-to-b from-slate-950 to-blue-950 min-h-screen flex flex-col items-center p-4 font-sans text-white">
       {/* Background grid */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-5">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.07)_1px,transparent_1px),linear-gradient(to_right,rgba(255,255,255,0.07)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
       </div>
       
       {/* Header */}
-      <div className="mb-8 text-center z-10">
+      <div className="mt-8 mb-6 text-center z-10">
         <h1 className="text-4xl md:text-5xl font-extrabold mb-2 tracking-tighter">
           <span className="bg-gradient-to-r from-blue-400 to-blue-600 text-transparent bg-clip-text">
             Tripl3sixMafia
@@ -23,9 +27,39 @@ export default function Home() {
         </p>
       </div>
       
-      {/* Card Validator Component */}
+      {/* Tabs */}
+      <div className="w-full max-w-md mb-6 z-10">
+        <div className="flex border-b border-slate-700">
+          <button
+            onClick={() => setActiveTab('single')}
+            className={`flex-1 py-3 text-center font-medium text-sm transition-colors ${
+              activeTab === 'single' 
+                ? 'text-blue-400 border-b-2 border-blue-500' 
+                : 'text-slate-400 hover:text-slate-300'
+            }`}
+          >
+            Single Card Check
+          </button>
+          <button
+            onClick={() => setActiveTab('bulk')}
+            className={`flex-1 py-3 text-center font-medium text-sm transition-colors ${
+              activeTab === 'bulk' 
+                ? 'text-blue-400 border-b-2 border-blue-500' 
+                : 'text-slate-400 hover:text-slate-300'
+            }`}
+          >
+            Bulk Validation
+          </button>
+        </div>
+      </div>
+      
+      {/* Card Validator Components */}
       <div className="z-10 w-full max-w-md">
-        <CreditCardValidator />
+        {activeTab === 'single' ? (
+          <CreditCardValidator />
+        ) : (
+          <BulkCardValidator />
+        )}
       </div>
       
       {/* Supported Processors */}

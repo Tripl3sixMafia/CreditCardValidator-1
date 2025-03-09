@@ -15,7 +15,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
 });
 
 // Initialize Telegram Bot (silently fail if not configured)
-let telegramBot: TelegramBot | null = null;
+let telegramBot: any = null;
 const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
 const telegramChatId = process.env.TELEGRAM_CHAT_ID;
 
