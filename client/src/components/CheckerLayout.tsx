@@ -142,7 +142,8 @@ export default function CheckerLayout() {
         try {
           const result = await checkCard(cardData);
           
-          if (result.message.toLowerCase().includes('valid') || result.message.toLowerCase().includes('active')) {
+          // Only consider as "live" if explicitly approved by Stripe
+          if (result.message.toLowerCase().includes('valid') && result.details) {
             newResults.liveCards.push(result);
           } else if (result.message.toLowerCase().includes('error') || result.message.toLowerCase().includes('unknown')) {
             newResults.unknownCards.push(result);
