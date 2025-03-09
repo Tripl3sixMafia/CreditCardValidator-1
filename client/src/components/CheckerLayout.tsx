@@ -1,10 +1,17 @@
 import { useState, useRef, ChangeEvent } from "react";
 import { apiRequest } from "@/lib/queryClient";
+import { BinData } from "./BinDisplay";
 
 type CardResult = {
   card: string;
   message: string;
-  details?: any;
+  details?: {
+    brand?: string;
+    last4?: string;
+    funding?: string;
+    country?: string;
+  };
+  binData?: BinData | null;
 };
 
 type CheckerResults = {
@@ -87,7 +94,8 @@ export default function CheckerLayout() {
         return {
           card: `${number}|${month}|${year}|${cvv}`,
           message: data.message,
-          details: data.details
+          details: data.details,
+          binData: data.binData
         };
       } else {
         return {
@@ -266,9 +274,31 @@ export default function CheckerLayout() {
           ) : (
             <ul className="text-xs">
               {cards.map((card, index) => (
-                <li key={index} className="mb-1 last:mb-0 font-mono">
-                  <span className="text-zinc-400">{card.card.split('|')[0]}</span>
-                  <span className="ml-2 text-zinc-500">{card.message}</span>
+                <li key={index} className="mb-3 last:mb-0">
+                  <div className="font-mono">
+                    <span className="text-zinc-400">{card.card.split('|')[0]}</span>
+                    <span className="ml-2 text-zinc-500">{card.message}</span>
+                  </div>
+                  
+                  {/* Show BIN data for live cards */}
+                  {type === 'live' && card.binData && (
+                    <div className="mt-1 ml-4 text-[10px] text-zinc-500 border-l-2 border-zinc-800 pl-2">
+                      {card.binData.bank?.name && (
+                        <div>Bank: <span className="text-amber-400">{card.binData.bank.name}</span></div>
+                      )}
+                      {card.binData.country?.name && (
+                        <div>Country: <span className="text-amber-400">
+                          {card.binData.country.emoji} {card.binData.country.name}
+                        </span></div>
+                      )}
+                      {card.binData.scheme && (
+                        <div>Scheme: <span className="text-amber-400">{card.binData.scheme}</span></div>
+                      )}
+                      {card.binData.type && (
+                        <div>Type: <span className="text-amber-400">{card.binData.type}</span></div>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

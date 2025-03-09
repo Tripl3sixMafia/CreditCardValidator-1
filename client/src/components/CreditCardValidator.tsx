@@ -5,6 +5,7 @@ import { CardState } from "@/types/card";
 import Logo from "./Logo";
 import { apiRequest } from "@/lib/queryClient";
 import { validateCard } from "@/utils/cardValidation";
+import BinDisplay, { BinData } from "./BinDisplay";
 
 export default function CreditCardValidator() {
   const [cardState, setCardState] = useState<CardState>({
@@ -26,6 +27,7 @@ export default function CreditCardValidator() {
       funding?: string;
       country?: string;
     };
+    binData?: BinData | null;
   } | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -56,6 +58,7 @@ export default function CreditCardValidator() {
           isValid: true,
           message: data.message || "Card is valid and active",
           details: data.details,
+          binData: data.binData,
           code: data.code
         });
       } else {
@@ -244,6 +247,13 @@ export default function CreditCardValidator() {
                 {validationResult.details.country && (
                   <p>Country: <span className="text-white">{validationResult.details.country}</span></p>
                 )}
+              </div>
+            )}
+            
+            {/* BIN Database Information */}
+            {validationResult.isValid && validationResult.binData && (
+              <div className="mt-4 pl-11">
+                <BinDisplay binData={validationResult.binData} />
               </div>
             )}
           </div>

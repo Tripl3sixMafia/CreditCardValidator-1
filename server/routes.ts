@@ -86,7 +86,7 @@ async function lookupBIN(binNumber: string): Promise<BinLookupResult | null> {
     }
     
     const data = await response.json();
-    return data;
+    return data as BinLookupResult;
   } catch (error) {
     console.error('Error during BIN lookup:', error);
     return null;
