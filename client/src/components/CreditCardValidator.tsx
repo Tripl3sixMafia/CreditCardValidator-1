@@ -86,19 +86,19 @@ export default function CreditCardValidator() {
     message?: string;
   }) => {
     const bgColor = status === null 
-      ? 'bg-slate-800/50' 
+      ? 'bg-zinc-800/50' 
       : status 
         ? 'bg-green-900/20 border-green-800' 
         : 'bg-red-900/20 border-red-800';
     
     const textColor = status === null 
-      ? 'text-slate-400' 
+      ? 'text-zinc-400' 
       : status 
         ? 'text-green-400'
         : 'text-red-400';
 
     const iconColor = status === null 
-      ? 'text-slate-600' 
+      ? 'text-zinc-600' 
       : status 
         ? 'text-green-500' 
         : 'text-red-500';
@@ -122,7 +122,7 @@ export default function CreditCardValidator() {
         </div>
         <div className="ml-3">
           <p className={`text-xs font-medium ${textColor}`}>{label}</p>
-          {message && <p className="text-xs text-slate-500 mt-0.5">{message}</p>}
+          {message && <p className="text-xs text-zinc-500 mt-0.5">{message}</p>}
         </div>
       </div>
     );
@@ -130,12 +130,12 @@ export default function CreditCardValidator() {
 
   return (
     <div className="w-full max-w-md">
-      <div className="bg-slate-900 rounded-xl shadow-2xl overflow-hidden border border-slate-800">
+      <div className="bg-zinc-900 rounded-xl shadow-2xl overflow-hidden border border-zinc-800">
         {/* Header Section */}
-        <div className="bg-gradient-to-r from-blue-950 to-slate-900 px-6 py-4 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-amber-900/60 to-zinc-900 px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-white text-xl font-semibold">Card Validator</h1>
-            <p className="text-blue-200 text-sm">Tripl3sixMafia Verification System</p>
+            <p className="text-amber-200 text-sm">Tripl3sixMafia Verification System</p>
           </div>
           <Logo className="w-12 h-12" />
         </div>
@@ -145,14 +145,14 @@ export default function CreditCardValidator() {
         
         {/* Processor Selection */}
         <div className="mx-6 mt-4 mb-3">
-          <p className="text-xs text-slate-400 mb-2 font-medium">SELECT PROCESSOR</p>
+          <p className="text-xs text-zinc-400 mb-2 font-medium">SELECT PROCESSOR</p>
           <div className="grid grid-cols-2 gap-2">
             <button 
               onClick={() => setSelectedProcessor('stripe')}
               className={`py-2 px-3 text-xs rounded-md border ${
                 selectedProcessor === 'stripe' 
-                  ? 'bg-blue-900/30 border-blue-700 text-blue-400' 
-                  : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-800'
+                  ? 'bg-amber-900/30 border-amber-700 text-amber-400' 
+                  : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800'
               }`}
             >
               STRIPE
@@ -161,8 +161,8 @@ export default function CreditCardValidator() {
               onClick={() => setSelectedProcessor('paypal')}
               className={`py-2 px-3 text-xs rounded-md border ${
                 selectedProcessor === 'paypal' 
-                  ? 'bg-blue-900/30 border-blue-700 text-blue-400' 
-                  : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-800'
+                  ? 'bg-amber-900/30 border-amber-700 text-amber-400' 
+                  : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800'
               } opacity-50`}
               disabled
             >
@@ -219,7 +219,7 @@ export default function CreditCardValidator() {
                     {selectedProcessor}
                   </span>
                   {validationResult.code && (
-                    <span className="ml-2 text-xs text-slate-500">Code: {validationResult.code}</span>
+                    <span className="ml-2 text-xs text-zinc-500">Code: {validationResult.code}</span>
                   )}
                 </div>
                 <p className={`text-sm font-medium mt-1 ${
@@ -231,7 +231,7 @@ export default function CreditCardValidator() {
             </div>
             
             {validationResult.isValid && validationResult.details && (
-              <div className="mt-3 pl-11 text-xs text-slate-400 grid grid-cols-2 gap-2">
+              <div className="mt-3 pl-11 text-xs text-zinc-400 grid grid-cols-2 gap-2">
                 {validationResult.details.brand && (
                   <p>Brand: <span className="text-white">{validationResult.details.brand}</span></p>
                 )}
@@ -259,8 +259,8 @@ export default function CreditCardValidator() {
         />
 
         {/* Info Section */}
-        <div className="border-t border-slate-800 px-6 py-4 bg-slate-950">
-          <p className="text-xs text-slate-500">
+        <div className="border-t border-zinc-800 px-6 py-4 bg-zinc-950">
+          <p className="text-xs text-zinc-500">
             Tripl3sixMafia CC validates your card for online purchases. All testing is secure and uses industry-standard encryption.
           </p>
         </div>

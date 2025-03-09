@@ -180,25 +180,25 @@ export default function BulkCardValidator() {
   };
   
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 shadow-xl overflow-hidden">
-      <div className="p-6 border-b border-slate-800">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900 shadow-xl overflow-hidden">
+      <div className="p-6 border-b border-zinc-800">
         <h2 className="text-xl font-semibold text-white mb-2">Bulk Card Validation</h2>
-        <p className="text-slate-400 text-sm">
-          Upload a text file with cards in format: <span className="bg-slate-800 px-1 py-0.5 rounded text-blue-400 font-mono text-xs">number|month|year|cvv</span>
+        <p className="text-zinc-400 text-sm">
+          Upload a text file with cards in format: <span className="bg-zinc-800 px-1 py-0.5 rounded text-amber-400 font-mono text-xs">number|month|year|cvv</span>
         </p>
       </div>
       
       <div className="p-6">
         {/* Processor Selection */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-slate-300 mb-2">Select Processor</label>
+          <label className="block text-sm font-medium text-zinc-300 mb-2">Select Processor</label>
           <div className="grid grid-cols-2 gap-2">
             <button 
               onClick={() => setProcessor('stripe')}
               className={`py-2 px-3 text-xs rounded-md border ${
                 processor === 'stripe' 
-                  ? 'bg-blue-900/30 border-blue-700 text-blue-400' 
-                  : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-800'
+                  ? 'bg-amber-900/30 border-amber-700 text-amber-400' 
+                  : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800'
               }`}
             >
               STRIPE
@@ -207,8 +207,8 @@ export default function BulkCardValidator() {
               onClick={() => setProcessor('paypal')}
               className={`py-2 px-3 text-xs rounded-md border ${
                 processor === 'paypal' 
-                  ? 'bg-blue-900/30 border-blue-700 text-blue-400' 
-                  : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-800'
+                  ? 'bg-amber-900/30 border-amber-700 text-amber-400' 
+                  : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800'
               } opacity-50`}
               disabled
             >
@@ -219,26 +219,26 @@ export default function BulkCardValidator() {
         
         {/* File Upload */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-slate-300 mb-2">
+          <label className="block text-sm font-medium text-zinc-300 mb-2">
             Upload Card List (Max 250 cards)
           </label>
           <div className="flex items-center justify-center w-full">
             <label 
-              className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-700 border-dashed rounded-lg cursor-pointer bg-slate-800/30 hover:bg-slate-800/50 transition-colors"
+              className="flex flex-col items-center justify-center w-full h-32 border-2 border-zinc-700 border-dashed rounded-lg cursor-pointer bg-zinc-800/30 hover:bg-zinc-800/50 transition-colors"
             >
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                <svg className="w-8 h-8 mb-3 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-8 h-8 mb-3 text-zinc-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 {file ? (
                   <div className="text-center">
-                    <p className="text-sm text-blue-400 font-medium">{file.name}</p>
-                    <p className="text-xs text-slate-400">{totalCards} cards detected</p>
+                    <p className="text-sm text-amber-400 font-medium">{file.name}</p>
+                    <p className="text-xs text-zinc-400">{totalCards} cards detected</p>
                   </div>
                 ) : (
                   <div className="text-center">
-                    <p className="text-sm text-slate-400">Click to upload or drag and drop</p>
-                    <p className="text-xs text-slate-500">Text file (.txt) with one card per line</p>
+                    <p className="text-sm text-zinc-400">Click to upload or drag and drop</p>
+                    <p className="text-xs text-zinc-500">Text file (.txt) with one card per line</p>
                   </div>
                 )}
               </div>
@@ -258,14 +258,14 @@ export default function BulkCardValidator() {
           <button
             onClick={handleBulkValidation}
             disabled={!file || isLoading}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isLoading ? 'Processing...' : 'Validate Cards'}
           </button>
           <button
             onClick={resetForm}
             disabled={isLoading}
-            className="px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Reset
           </button>
@@ -274,24 +274,24 @@ export default function BulkCardValidator() {
         {/* Progress Bar */}
         {isLoading && (
           <div className="mt-4">
-            <div className="w-full bg-slate-800 rounded-full h-2.5 mb-1">
+            <div className="w-full bg-zinc-800 rounded-full h-2.5 mb-1">
               <div 
-                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
+                className="bg-amber-600 h-2.5 rounded-full transition-all duration-300" 
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
-            <p className="text-xs text-slate-400 text-right">{progress}% Complete</p>
+            <p className="text-xs text-zinc-400 text-right">{progress}% Complete</p>
           </div>
         )}
         
         {/* Results */}
         {results && (
-          <div className="mt-6 border border-slate-800 rounded-lg overflow-hidden">
-            <div className="p-4 bg-slate-800/30">
+          <div className="mt-6 border border-zinc-800 rounded-lg overflow-hidden">
+            <div className="p-4 bg-zinc-800/30">
               <h3 className="text-white font-medium">Results Summary</h3>
               <div className="mt-2 grid grid-cols-3 gap-3">
-                <div className="bg-slate-800 p-3 rounded-md text-center">
-                  <p className="text-slate-400 text-xs font-medium">Total</p>
+                <div className="bg-zinc-800 p-3 rounded-md text-center">
+                  <p className="text-zinc-400 text-xs font-medium">Total</p>
                   <p className="text-white text-xl font-bold">{results.totalProcessed}</p>
                 </div>
                 <div className="bg-green-900/30 border border-green-800 p-3 rounded-md text-center">
@@ -305,7 +305,7 @@ export default function BulkCardValidator() {
               </div>
             </div>
             
-            <div className="p-4 border-t border-slate-800 flex flex-col md:flex-row gap-3">
+            <div className="p-4 border-t border-zinc-800 flex flex-col md:flex-row gap-3">
               <button
                 onClick={() => downloadResults('valid')}
                 className="flex-1 bg-green-700 hover:bg-green-800 text-white py-2 px-3 rounded-md font-medium text-sm transition-colors"
