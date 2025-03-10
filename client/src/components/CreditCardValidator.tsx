@@ -31,7 +31,9 @@ export default function CreditCardValidator() {
   } | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedProcessor, setSelectedProcessor] = useState<string>("stripe");
+  const [selectedProcessor, setSelectedProcessor] = useState<string>("chker");
+  const [stripeKey, setStripeKey] = useState<string>("");
+  const [showStripeKey, setShowStripeKey] = useState<boolean>(false);
   
   // Local validation for separate fields
   const cardValidation = validateCard(cardState);
@@ -43,13 +45,21 @@ export default function CreditCardValidator() {
   const handleValidateCard = async () => {
     setIsLoading(true);
     try {
-      const response = await apiRequest("POST", "/api/validate-card", {
+      // Prepare request data based on selected processor
+      const requestData: any = {
         number: cardState.number,
         holder: cardState.holder,
         expiry: cardState.expiry,
         cvv: cardState.cvv,
         processor: selectedProcessor
-      });
+      };
+      
+      // Add stripe key if it's provided and the processor is stripe
+      if (selectedProcessor === "stripe" && stripeKey.trim()) {
+        requestData.stripeKey = stripeKey.trim();
+      }
+      
+      const response = await apiRequest("POST", "/api/validate-card", requestData);
       
       const data = await response.json();
       
