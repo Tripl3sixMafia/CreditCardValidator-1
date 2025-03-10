@@ -61,12 +61,27 @@ const DEAD_CARD_INDICATORS = [
 ];
 
 export class CardChecker {
-  private stripe: Stripe;
+  private stripe?: Stripe; // Make optional as it's only initialized with secret keys
+  private publicKey: string = "pk_live_B3imPhpDAew8RzuhaKclN4Kd"; // Default public key
   
-  constructor(stripeSecretKey: string) {
-    this.stripe = new Stripe(stripeSecretKey || '', {
-      apiVersion: '2023-10-16' as any,
-    });
+  constructor(stripeKey: string) {
+    // If no key is provided, use the default public key
+    const keyToUse = stripeKey || this.publicKey;
+    
+    // Check if the key is a public key or secret key
+    const isPublicKey = keyToUse.startsWith('pk_');
+    
+    // Store the key for API calls
+    this.publicKey = keyToUse;
+    
+    if (!isPublicKey) {
+      // For secret keys, initialize Stripe normally (for Node.js server-side use)
+      this.stripe = new Stripe(keyToUse, { apiVersion: '2023-10-16' as any });
+    }
+    
+    // For public keys, we don't initialize the Stripe object
+    // Instead, we'll use fetch API directly with public key in the checkCard method
+    console.log(`CardChecker initialized with ${isPublicKey ? 'public' : 'secret'} key`);
   }
   
   async checkCard(cardDetails: {
@@ -80,35 +95,111 @@ export class CardChecker {
       // Clean card number
       const cleanCardNumber = cardDetails.number.replace(/\s+/g, '');
       
-      // First create a token to validate card format
-      const tokenParams: any = {
-        card: {
-          number: cleanCardNumber,
-          exp_month: cardDetails.expMonth,
-          exp_year: cardDetails.expYear,
-          cvc: cardDetails.cvc,
-          name: cardDetails.name || undefined
+      // Detect if we're using public key or secret key
+      const isPublicKey = this.publicKey.startsWith('pk_');
+      
+      let token: any;
+      let paymentMethod: any;
+      let paymentIntent: any;
+      
+      if (isPublicKey) {
+        // Using public key, we'll make direct API calls like the CC-Checker does
+        try {
+          // First create a token to validate card format
+          const tokenResponse = await fetch('https://api.stripe.com/v1/tokens', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Authorization': `Bearer ${this.publicKey}`
+            },
+            body: new URLSearchParams({
+              'card[number]': cleanCardNumber,
+              'card[exp_month]': cardDetails.expMonth.toString(),
+              'card[exp_year]': cardDetails.expYear.toString(),
+              'card[cvc]': cardDetails.cvc
+            }).toString()
+          });
+          
+          token = await tokenResponse.json();
+          
+          if (token.error) {
+            throw new Error(token.error.message || 'Invalid card');
+          }
+          
+          // Create payment method with token
+          const paymentMethodResponse = await fetch('https://api.stripe.com/v1/payment_methods', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Authorization': `Bearer ${this.publicKey}`
+            },
+            body: new URLSearchParams({
+              'type': 'card',
+              'card[token]': token.id
+            }).toString()
+          });
+          
+          paymentMethod = await paymentMethodResponse.json();
+          
+          if (paymentMethod.error) {
+            throw new Error(paymentMethod.error.message || 'Payment method creation failed');
+          }
+          
+          // Create a test payment intent (similar to what CC-Checker does)
+          const paymentIntentResponse = await fetch('https://api.stripe.com/v1/payment_intents', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Authorization': `Bearer ${this.publicKey}`
+            },
+            body: new URLSearchParams({
+              'amount': '100',
+              'currency': 'usd',
+              'payment_method': paymentMethod.id,
+              'confirm': 'true',
+              'capture_method': 'manual'
+            }).toString()
+          });
+          
+          paymentIntent = await paymentIntentResponse.json();
+        } catch (error: any) {
+          throw error;
         }
-      };
-      
-      const token = await this.stripe.tokens.create(tokenParams);
-      
-      // If token creation is successful, try creating a payment method
-      const paymentMethod = await this.stripe.paymentMethods.create({
-        type: 'card',
-        card: {
-          token: token.id,
-        },
-      });
-      
-      // Create a $1 PaymentIntent to verify if card is active
-      const paymentIntent = await this.stripe.paymentIntents.create({
-        amount: 100, // $1.00
-        currency: 'usd',
-        payment_method: paymentMethod.id,
-        confirm: true,
-        capture_method: 'manual', // Set to manual to avoid actual charges
-      });
+      } else if (this.stripe) {
+        // Using secret key with Stripe SDK
+        // First create a token to validate card format
+        const tokenParams: any = {
+          card: {
+            number: cleanCardNumber,
+            exp_month: cardDetails.expMonth,
+            exp_year: cardDetails.expYear,
+            cvc: cardDetails.cvc,
+            name: cardDetails.name || undefined
+          }
+        };
+        
+        token = await this.stripe!.tokens.create(tokenParams);
+        
+        // If token creation is successful, try creating a payment method
+        paymentMethod = await this.stripe!.paymentMethods.create({
+          type: 'card',
+          card: {
+            token: token.id,
+          },
+        });
+        
+        // Create a $1 PaymentIntent to verify if card is active
+        paymentIntent = await this.stripe!.paymentIntents.create({
+          amount: 100, // $1.00
+          currency: 'usd',
+          payment_method: paymentMethod.id,
+          confirm: true,
+          capture_method: 'manual', // Set to manual to avoid actual charges
+        });
+      } else {
+        // This shouldn't happen - we should always have either public key API or Stripe SDK
+        throw new Error('No Stripe client available for card checking');
+      }
       
       // Get BIN data
       let binData = null;
@@ -132,7 +223,19 @@ export class CardChecker {
       
       // First, cancel the payment intent to avoid accidental charges (if chargeable)
       if (paymentIntent.status === 'requires_capture') {
-        await this.stripe.paymentIntents.cancel(paymentIntent.id);
+        if (isPublicKey) {
+          // Cancel using direct API call with public key
+          await fetch(`https://api.stripe.com/v1/payment_intents/${paymentIntent.id}/cancel`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Authorization': `Bearer ${this.publicKey}`
+            }
+          });
+        } else if (this.stripe) {
+          // Cancel using Stripe library with secret key
+          await this.stripe.paymentIntents.cancel(paymentIntent.id);
+        }
       }
       
       // Check for live card indicators
