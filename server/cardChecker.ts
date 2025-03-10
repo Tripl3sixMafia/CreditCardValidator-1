@@ -234,7 +234,7 @@ export class CardChecker {
           });
         } else if (this.stripe) {
           // Cancel using Stripe library with secret key
-          await this.stripe.paymentIntents.cancel(paymentIntent.id);
+          await this.stripe!.paymentIntents.cancel(paymentIntent.id);
         }
       }
       
