@@ -6,6 +6,7 @@ type CardResult = {
   card: string;
   message: string;
   code?: string;
+  status?: string; // LIVE, DEAD, or UNKNOWN status
   details?: {
     brand?: string;
     last4?: string;
@@ -91,26 +92,20 @@ export default function CheckerLayout() {
       
       const data = await response.json();
       
-      if (data.success) {
-        return {
-          card: `${number}|${month}|${year}|${cvv}`,
-          message: data.message,
-          code: data.code,
-          details: data.details,
-          binData: data.binData
-        };
-      } else {
-        return {
-          card: `${number}|${month}|${year}|${cvv}`,
-          message: data.message,
-          code: data.code,
-          binData: data.binData
-        };
-      }
+      // Ensure we always get a status from the server or use a default
+      return {
+        card: `${number}|${month}|${year}|${cvv}`,
+        message: data.message,
+        code: data.code,
+        status: data.status || (data.success ? 'LIVE' : 'DEAD'), // Ensure status is always present
+        details: data.details,
+        binData: data.binData
+      };
     } catch (error) {
       return {
         card: `${cardData.number}|${cardData.month}|${cardData.year}|${cardData.cvv}`,
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: error instanceof Error ? error.message : 'Unknown error',
+        status: 'UNKNOWN' // Default to UNKNOWN for error cases
       };
     }
   };
@@ -146,16 +141,10 @@ export default function CheckerLayout() {
         try {
           const result = await checkCard(cardData);
           
-          // Check the response code to determine if the card is live
-          if (result.code === 'approved') {
+          // Check the status to determine card classification
+          if (result.status === 'LIVE') {
             newResults.liveCards.push(result);
-          } else if (result.code === 'card_not_chargeable' || 
-                    result.code === 'card_declined' ||
-                    result.code === 'expired_card' ||
-                    result.code === 'incorrect_cvc' ||
-                    result.code === 'processing_error' ||
-                    result.code === 'insufficient_funds') {
-            // Dead cards are cards that are validated but declined for specific reasons
+          } else if (result.status === 'DEAD') {
             newResults.deadCards.push(result);
           } else {
             // Unknown cards are ones with validation errors or unknown status
@@ -164,13 +153,15 @@ export default function CheckerLayout() {
         } catch (error) {
           newResults.unknownCards.push({
             card: lines[i],
-            message: error instanceof Error ? error.message : 'Unknown error'
+            message: error instanceof Error ? error.message : 'Unknown error',
+            status: 'UNKNOWN'
           });
         }
       } else {
         newResults.unknownCards.push({
           card: lines[i],
-          message: 'Invalid card format'
+          message: 'Invalid card format',
+          status: 'UNKNOWN'
         });
       }
       
