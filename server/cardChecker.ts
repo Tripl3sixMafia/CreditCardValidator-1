@@ -14,7 +14,40 @@ export interface CheckerResponse {
   };
   binData?: any;
   code?: string;
+  status?: string; // LIVE, DEAD, UNKNOWN
 }
+
+// Error codes and their classifications
+const LIVE_CARD_INDICATORS = [
+  'incorrect_cvc',          // CVC incorrect but card valid
+  'security_code_incorrect',
+  'Your card\'s security code is incorrect',
+  'succeeded',
+  'requires_payment_method',
+  'requires_capture',
+  'payment_intent_unexpected_state',
+  'authentication_required'
+];
+
+const DEAD_CARD_INDICATORS = [
+  'card_declined',
+  'expired_card', 
+  'lost_card',
+  'stolen_card',
+  'Your card has expired',
+  'Your card was declined',
+  'Your card number is incorrect',
+  'Your card\'s expiration month is invalid',
+  'Your card\'s expiration year is invalid',
+  'Your card is not supported',
+  'insufficient_funds',
+  'Your card has insufficient funds',
+  'card_not_supported',
+  'generic_decline',
+  'do_not_honor',
+  'fraudulent',
+  'invalid_account'
+];
 
 export class CardChecker {
   private stripe: Stripe;
@@ -66,14 +99,6 @@ export class CardChecker {
         capture_method: 'manual', // Set to manual to avoid actual charges
       });
       
-      // Check if card is chargeable
-      const isLiveCard = paymentIntent.status === 'requires_capture';
-      
-      // Always cancel the payment intent
-      if (isLiveCard) {
-        await this.stripe.paymentIntents.cancel(paymentIntent.id);
-      }
-      
       // Get BIN data
       let binData = null;
       try {
@@ -82,31 +107,56 @@ export class CardChecker {
         console.error('BIN lookup failed:', binError);
       }
       
-      if (isLiveCard) {
+      // Check if card is chargeable based on payment intent status
+      if (paymentIntent.status === 'requires_capture') {
+        // Cancel the payment intent to avoid accidental charges
+        await this.stripe.paymentIntents.cancel(paymentIntent.id);
+        
         return {
           success: true,
           message: 'Card is valid and active (LIVE)',
           details: {
-            brand: token.card?.brand,
-            last4: token.card?.last4,
-            funding: token.card?.funding,
-            country: token.card?.country
+            brand: token.card?.brand || undefined,
+            last4: token.card?.last4 || undefined,
+            funding: token.card?.funding || undefined,
+            country: token.card?.country || undefined
           },
-          binData: binData || null,
-          code: 'approved'
+          binData: binData,
+          code: 'approved',
+          status: 'LIVE'
+        };
+      } else if (LIVE_CARD_INDICATORS.some(indicator => 
+                 paymentIntent.status.includes(indicator) || 
+                 (paymentIntent.last_payment_error?.code && 
+                  paymentIntent.last_payment_error.code.includes(indicator)))) {
+        // If we have a 3D Secure requirement or CVV error, it's still a valid card
+        return {
+          success: true,
+          message: 'Card is valid but requires additional authentication',
+          details: {
+            brand: token.card?.brand || undefined,
+            last4: token.card?.last4 || undefined,
+            funding: token.card?.funding || undefined,
+            country: token.card?.country || undefined
+          },
+          binData: binData,
+          code: paymentIntent.last_payment_error?.code || paymentIntent.status,
+          status: 'LIVE'
         };
       } else {
+        // If we can create a payment intent but it's declined in some way, card is DEAD
         return {
           success: false,
-          message: 'Card is valid but not active for charges',
+          message: paymentIntent.last_payment_error?.message || 'Card is valid but declined',
           details: {
-            brand: token.card?.brand,
-            last4: token.card?.last4,
-            funding: token.card?.funding,
-            country: token.card?.country
+            brand: token.card?.brand || undefined,
+            last4: token.card?.last4 || undefined,
+            funding: token.card?.funding || undefined,
+            country: token.card?.country || undefined
           },
-          binData: binData || null,
-          code: 'card_not_chargeable'
+          binData: binData,
+          code: paymentIntent.last_payment_error?.code || 'card_not_chargeable',
+          status: 'DEAD'
         };
       }
     } catch (error: any) {
@@ -118,11 +168,29 @@ export class CardChecker {
         console.error('BIN lookup failed during error handling:', binError);
       }
       
+      // Check if the error message or code matches any of our live indicators
+      const errorMessage = error.message || '';
+      const errorCode = error.code || '';
+      
+      // Classify based on error message/code
+      let status = 'UNKNOWN';
+      let success = false;
+      
+      if (LIVE_CARD_INDICATORS.some(indicator => 
+          errorMessage.includes(indicator) || errorCode.includes(indicator))) {
+        status = 'LIVE';
+        success = true;
+      } else if (DEAD_CARD_INDICATORS.some(indicator => 
+                errorMessage.includes(indicator) || errorCode.includes(indicator))) {
+        status = 'DEAD';
+      }
+      
       return {
-        success: false,
+        success,
         message: error.message || 'Card validation failed',
         code: error.code || 'card_declined',
-        binData: binData
+        binData: binData,
+        status
       };
     }
   }

