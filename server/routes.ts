@@ -162,8 +162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Import card checker
-  import { CardChecker } from './cardChecker';
+  // Card checker is already imported at the top
   
   // Initialize card checker with Stripe key
   const cardChecker = new CardChecker(process.env.STRIPE_SECRET_KEY || '');
