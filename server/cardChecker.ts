@@ -17,6 +17,22 @@ export interface CheckerResponse {
   status?: string; // LIVE, DEAD, UNKNOWN
 }
 
+// ChkerAPI response interface
+export interface ChkerApiResponse {
+  success: boolean;
+  message: string;
+  result?: {
+    bin?: string;
+    scheme?: string;
+    type?: string;
+    brand?: string;
+    prepaid?: boolean;
+    country?: string;
+    bank?: string;
+    status?: string; // LIVE, DEAD, UNKNOWN
+  };
+}
+
 // Error codes and their classifications - based on CC-Checker reference implementation
 const LIVE_CARD_INDICATORS = [
   'cvc_check: pass',
@@ -63,6 +79,7 @@ const DEAD_CARD_INDICATORS = [
 export class CardChecker {
   private stripe?: Stripe; // Make optional as it's only initialized with secret keys
   private publicKey: string = "pk_live_B3imPhpDAew8RzuhaKclN4Kd"; // Default public key
+  private userStripeKey?: string; // User provided Stripe secret key
   
   constructor(stripeKey: string) {
     // If no key is provided, use the default public key
@@ -84,6 +101,158 @@ export class CardChecker {
     console.log(`CardChecker initialized with ${isPublicKey ? 'public' : 'secret'} key`);
   }
   
+  // Set user provided Stripe key (for custom checker)
+  setUserStripeKey(key: string) {
+    this.userStripeKey = key;
+  }
+  
+  // Check card using the external API.CHKER.CC service
+  async checkCardWithChkerAPI(cardParams: {
+    number: string;
+    expMonth: number;
+    expYear: number;
+    cvc: string;
+  }): Promise<CheckerResponse> {
+    try {
+      // Clean card number
+      const cleanCardNumber = cardParams.number.replace(/\s+/g, '');
+      
+      // Format expiry date to MM/YY
+      const expMonth = cardParams.expMonth.toString().padStart(2, '0');
+      const expYear = cardParams.expYear.toString().slice(-2);
+      
+      // Make API request to chker.cc
+      const response = await fetch('https://api.chker.cc/card', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          card: cleanCardNumber,
+          month: expMonth,
+          year: expYear,
+          cvv: cardParams.cvc
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const apiResponse = await response.json() as ChkerApiResponse;
+      
+      // Get BIN data
+      let binData = null;
+      try {
+        binData = await this.lookupBIN(cleanCardNumber);
+      } catch (binError) {
+        console.error('BIN lookup failed:', binError);
+      }
+      
+      // Extract the last 4 digits
+      const last4Digits = cleanCardNumber.slice(-4);
+      
+      // Determine status from API response
+      const status = apiResponse.result?.status || 'UNKNOWN';
+      const isSuccess = status === 'LIVE';
+      
+      // Create the card details
+      const detailsObj = {
+        brand: apiResponse.result?.brand || binData?.brand || 'Unknown',
+        last4: last4Digits,
+        funding: apiResponse.result?.type || binData?.type || 'Unknown',
+        country: apiResponse.result?.country || (binData?.country?.name || 'Unknown')
+      };
+      
+      return {
+        success: isSuccess,
+        message: apiResponse.message || (isSuccess ? 'Card is valid' : 'Card validation failed'),
+        details: detailsObj,
+        binData,
+        code: status.toLowerCase(),
+        status
+      };
+    } catch (error: any) {
+      // Get BIN data despite error
+      let binData = null;
+      try {
+        binData = await this.lookupBIN(cardParams.number.replace(/\s+/g, ''));
+      } catch (binError) {
+        console.error('BIN lookup failed during error handling:', binError);
+      }
+      
+      return {
+        success: false,
+        message: error.message || 'API validation failed',
+        code: 'api_error',
+        binData,
+        status: 'UNKNOWN'
+      };
+    }
+  }
+  
+  // Check card with user-provided Stripe key
+  async checkCardWithCustomKey(
+    cardDetails: {
+      number: string;
+      expMonth: number;
+      expYear: number;
+      cvc: string;
+      name?: string;
+    },
+    customKey: string
+  ): Promise<CheckerResponse> {
+    // Validate key format
+    if (!customKey || (!customKey.startsWith('sk_') && !customKey.startsWith('pk_'))) {
+      return {
+        success: false,
+        message: 'Invalid Stripe key format. Please provide a valid Stripe secret (sk_*) or public key (pk_*).',
+        code: 'invalid_key',
+        status: 'UNKNOWN'
+      };
+    }
+    
+    // Create a temporary Stripe instance with the user's key
+    let tempStripe: Stripe | null = null;
+    const isPublicKey = customKey.startsWith('pk_');
+    
+    if (!isPublicKey) {
+      try {
+        tempStripe = new Stripe(customKey, { apiVersion: '2023-10-16' as any });
+      } catch (error) {
+        return {
+          success: false,
+          message: 'Invalid Stripe secret key or API initialization error.',
+          code: 'invalid_key',
+          status: 'UNKNOWN'
+        };
+      }
+    }
+    
+    // Store original keys
+    const originalPublicKey = this.publicKey;
+    const originalStripe = this.stripe;
+    
+    // Set temporary keys
+    this.publicKey = isPublicKey ? customKey : originalPublicKey;
+    this.stripe = tempStripe || originalStripe;
+    
+    try {
+      // Use standard checkCard method with the temporary configuration
+      const result = await this.checkCard(cardDetails);
+      
+      // Attach source information to the result
+      result.message = `[Custom Key] ${result.message}`;
+      
+      return result;
+    } finally {
+      // Restore original keys
+      this.publicKey = originalPublicKey;
+      this.stripe = originalStripe;
+    }
+  }
+  
+  // Standard card checking method (with Stripe)
   async checkCard(cardDetails: {
     number: string;
     expMonth: number;

