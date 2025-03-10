@@ -98,6 +98,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: 'ok' });
   });
   
+  app.get('/api/stripe-health', async (req, res) => {
+    try {
+      // Test if Stripe is initialized correctly by making a simple API call
+      const stripeHealth = await stripe.balance.retrieve();
+      res.json({ 
+        success: true, 
+        status: 'Stripe is configured correctly',
+        hasValidKey: !!process.env.STRIPE_SECRET_KEY
+      });
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false, 
+        status: 'Stripe configuration issue',
+        error: error.message,
+        hasKey: !!process.env.STRIPE_SECRET_KEY
+      });
+    }
+  });
+  
   // BIN lookup endpoint
   app.get('/api/bin-lookup/:bin', async (req, res) => {
     const { bin } = req.params;
