@@ -226,6 +226,17 @@ export default function CreditCardValidator() {
               </div>
               <div className="ml-3">
                 <div className="flex items-center">
+                  <h3 className="text-sm font-medium text-white">
+                    {validationResult.isValid ? 'Card Valid' : 'Card Invalid'}
+                  </h3>
+                </div>
+                <div className="mt-1 text-sm text-gray-300">
+                  {validationResult.message || 'No additional details available'}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
                   <span className={`text-xs font-semibold uppercase px-2 py-0.5 rounded ${
                     validationResult.isValid ? 'bg-green-900 text-green-400' : 'bg-red-900 text-red-400'
                   }`}>
