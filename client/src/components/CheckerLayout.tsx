@@ -341,40 +341,44 @@ export default function CheckerLayout() {
             <p className="text-zinc-400 text-sm">Enter your cards below (format: number|month|year|cvv)</p>
           </div>
           
-          <div className="flex space-x-3 items-center">
-            <div className="text-zinc-400 text-sm flex items-center space-x-2">
-              <span>Processor:</span>
-              <select 
-                value={processor}
-                onChange={(e) => {
-                  setProcessor(e.target.value);
-                  if (e.target.value === 'stripe-custom') {
-                    setShowStripeKey(true);
-                  } else {
-                    setShowStripeKey(false);
-                  }
-                }}
-                className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-amber-400 text-sm"
-              >
-                <option value="chker">CHKER.CC API</option>
-                <option value="stripe">Stripe (Default)</option>
-                <option value="stripe-custom">Stripe (Custom Key)</option>
-              </select>
+          <div className="flex flex-col space-y-3">
+            {/* Processor selection row */}
+            <div className="flex items-center space-x-3">
+              <div className="text-zinc-400 text-sm flex items-center space-x-2">
+                <span>Processor:</span>
+                <select 
+                  value={processor}
+                  onChange={(e) => {
+                    setProcessor(e.target.value);
+                    if (e.target.value === 'stripe-custom') {
+                      setShowStripeKey(true);
+                    } else {
+                      setShowStripeKey(false);
+                    }
+                  }}
+                  className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-amber-400 text-sm"
+                >
+                  <option value="chker">CHKER.CC API</option>
+                  <option value="stripe">Stripe (Default)</option>
+                  <option value="stripe-custom">Stripe (Custom Key)</option>
+                </select>
+              </div>
+              
+              {/* Show Stripe key input if stripe-custom processor is selected */}
+              {showStripeKey && (
+                <div className="text-zinc-400 text-sm flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={stripeKey}
+                    onChange={(e) => setStripeKey(e.target.value)}
+                    placeholder="Enter Stripe SK Key"
+                    className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-amber-400 text-sm w-48"
+                  />
+                </div>
+              )}
             </div>
             
-            {/* Show Stripe key input if stripe-custom processor is selected */}
-            {showStripeKey && (
-              <div className="text-zinc-400 text-sm flex items-center space-x-2">
-                <input
-                  type="text"
-                  value={stripeKey}
-                  onChange={(e) => setStripeKey(e.target.value)}
-                  placeholder="Enter Stripe SK Key"
-                  className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-amber-400 text-sm w-48"
-                />
-              </div>
-            )}
-            
+            {/* Action buttons row */}
             <div className="flex items-center space-x-2">
               <button
                 onClick={clearAll}
