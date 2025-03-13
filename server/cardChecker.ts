@@ -649,7 +649,8 @@ export class CardChecker {
   }
   
   // Get card brand information based on card number prefix
-  private getCardBrandInfo(cardNumber: string): { brand: string; type: string } {
+  // Make public so it can be used from routes
+  getCardBrandInfo(cardNumber: string): { brand: string; type: string } {
     // Get first 6 digits for BIN identification
     const prefix = cardNumber.slice(0, 6);
     
@@ -676,7 +677,7 @@ export class CardChecker {
   }
   
   // Simple BIN lookup to get bank information
-  private async lookupBIN(binNumber: string): Promise<any> {
+  async lookupBIN(binNumber: string): Promise<any> {
     try {
       // Get first 6-8 digits (BIN)
       const bin = binNumber.slice(0, 8);

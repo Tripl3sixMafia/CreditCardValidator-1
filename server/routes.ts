@@ -411,6 +411,56 @@ ${binData ? `
     }
   });
 
+  // BIN Lookup endpoint
+  app.get('/api/bin-lookup', async (req, res) => {
+    const bin = req.query.bin as string;
+    
+    if (!bin || bin.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid BIN number. Must be at least 6 digits.'
+      });
+    }
+    
+    try {
+      // Create a CardChecker instance to use its BIN lookup functionality
+      const checker = new CardChecker(stripeKey);
+      
+      // Extract first 6 digits for BIN search
+      const binNumber = bin.substring(0, 6);
+      
+      // Look up BIN data from multiple sources
+      const binData = await lookupBIN(binNumber);
+      
+      if (binData) {
+        return res.json(binData);
+      }
+      
+      // Fallback to basic card info if BIN lookup fails
+      const cardInfo = checker.getCardBrandInfo(bin);
+      
+      res.json({
+        scheme: cardInfo.brand,
+        type: cardInfo.type,
+        brand: cardInfo.brand,
+        country: {
+          name: "Unknown",
+          emoji: "🌐"
+        },
+        bank: {
+          name: "Unknown Bank"
+        }
+      });
+      
+    } catch (error: any) {
+      console.error('BIN lookup error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Error looking up BIN data'
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
