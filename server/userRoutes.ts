@@ -81,7 +81,7 @@ userRouter.post('/api/register', async (req: Request, res: Response) => {
 });
 
 // Email verification
-userRouter.get('/verify-email', async (req: Request, res: Response) => {
+userRouter.get('/api/verify-email', async (req: Request, res: Response) => {
   const { token } = req.query;
   
   if (!token || typeof token !== 'string') {
@@ -94,11 +94,19 @@ userRouter.get('/verify-email', async (req: Request, res: Response) => {
   const success = await storage.verifyEmail(token);
   
   if (success) {
-    // Redirect to login page with success message
-    return res.redirect('/login?verified=true');
+    // Return success status
+    return res.status(200).json({
+      success: true,
+      message: 'Email verified successfully',
+      redirectUrl: '/login?verified=true'
+    });
   } else {
-    // Redirect to login page with error message
-    return res.redirect('/login?verified=false');
+    // Return error status
+    return res.status(400).json({
+      success: false,
+      message: 'Email verification failed',
+      redirectUrl: '/login?verified=false'
+    });
   }
 });
 
