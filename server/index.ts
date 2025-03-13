@@ -28,7 +28,7 @@ app.use(session({
 }));
 
 // Register user routes
-app.use('/api', userRouter);
+app.use(userRouter);
 
 app.use((req, res, next) => {
   const start = Date.now();
