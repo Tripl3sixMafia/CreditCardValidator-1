@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -20,52 +21,46 @@ const registerSchema = z.object({
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function Register() {
+  const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   
-  const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormValues>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      password: '',
-      confirmPassword: ''
-    }
   });
   
   const onSubmit = async (data: RegisterFormValues) => {
-    setIsLoading(true);
-    
     try {
-      const response = await apiRequest('POST', '/api/register', {
-        name: data.name,
-        email: data.email,
-        password: data.password
+      setIsLoading(true);
+      
+      const response = await apiRequest('/api/register', {
+        method: 'POST',
+        data: {
+          name: data.name,
+          email: data.email,
+          password: data.password,
+          confirmPassword: data.confirmPassword,
+        },
       });
       
-      const result = await response.json();
-      
-      if (result.success) {
+      if (response.success) {
         setIsSuccess(true);
-        toast({
-          title: 'Registration successful',
-          description: 'Please check your email to verify your account.',
-          variant: 'default',
-        });
       } else {
         toast({
           title: 'Registration failed',
-          description: result.message || 'An error occurred during registration',
+          description: response.message || 'An error occurred during registration',
           variant: 'destructive',
         });
       }
-    } catch (error) {
-      console.error('Registration error:', error);
+    } catch (error: any) {
       toast({
         title: 'Registration failed',
-        description: 'An unexpected error occurred. Please try again later.',
+        description: error.message || 'An error occurred during registration',
         variant: 'destructive',
       });
     } finally {

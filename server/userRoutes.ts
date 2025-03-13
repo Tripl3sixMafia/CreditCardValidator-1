@@ -27,7 +27,7 @@ export function setCardChecker(checker: CardChecker) {
 const userTelegramBots: Map<number, TelegramBot> = new Map();
 
 // Register new user
-userRouter.post('/register', async (req: Request, res: Response) => {
+userRouter.post('/api/register', async (req: Request, res: Response) => {
   try {
     // Validate input
     const validated = userRegistrationSchema.parse(req.body);
