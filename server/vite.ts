@@ -3,9 +3,16 @@ import { createServer as createViteServer } from "vite";
 import type { Express } from "express";
 import { Server } from "http";
 import path from "path";
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import fs from "fs";
 import { nanoid } from "nanoid";
 import viteConfig from "../vite.config";
+import express from "express";
+
+// Define __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const viteLogger = createLogger();
 

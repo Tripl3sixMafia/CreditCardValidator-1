@@ -43,17 +43,36 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    // Log the error for debugging
+    console.error("Server error:", err);
+    
+    // Send the error response but don't throw (which can cause unhandled rejections)
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
-    await setupVite(app, server);
+    try {
+      await setupVite(app, server);
+    } catch (error) {
+      console.error("Error setting up Vite:", error);
+      // If development setup fails, try to serve static files as fallback
+      try {
+        serveStatic(app);
+      } catch (staticError) {
+        console.error("Error serving static files:", staticError);
+        // Continue without static file handling
+      }
+    }
   } else {
-    serveStatic(app);
+    try {
+      serveStatic(app);
+    } catch (error) {
+      console.error("Error serving static files:", error);
+      // Continue without static file handling
+    }
   }
 
   // ALWAYS serve the app on port 5000
