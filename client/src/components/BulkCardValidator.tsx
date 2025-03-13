@@ -255,38 +255,12 @@ export default function BulkCardValidator() {
       <div className="p-6">
         {/* Processor Selection */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-zinc-300 mb-2">Select Processor</label>
-          <div className="grid grid-cols-3 gap-2">
+          <label className="block text-sm font-medium text-zinc-300 mb-2">Using Processor</label>
+          <div className="w-full">
             <button 
-              onClick={() => setProcessor('luhn')}
-              className={`py-2 px-3 text-xs rounded-md border ${
-                processor === 'luhn' 
-                  ? 'bg-amber-900/30 border-amber-700 text-amber-400' 
-                  : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800'
-              }`}
+              className="w-full py-2 px-3 text-xs rounded-md border bg-amber-900/30 border-amber-700 text-amber-400"
             >
-              LUHN CHECKER
-            </button>
-            <button 
-              onClick={() => setProcessor('stripe')}
-              className={`py-2 px-3 text-xs rounded-md border ${
-                processor === 'stripe' 
-                  ? 'bg-amber-900/30 border-amber-700 text-amber-400' 
-                  : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800'
-              }`}
-            >
-              STRIPE
-            </button>
-            <button 
-              onClick={() => setProcessor('paypal')}
-              className={`py-2 px-3 text-xs rounded-md border ${
-                processor === 'paypal' 
-                  ? 'bg-amber-900/30 border-amber-700 text-amber-400' 
-                  : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800'
-              } opacity-50`}
-              disabled
-            >
-              PAYPAL (Soon)
+              PRO CHECK
             </button>
           </div>
         </div>

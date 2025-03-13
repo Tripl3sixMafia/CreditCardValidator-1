@@ -172,131 +172,90 @@ export default function CheckerLayout() {
   }): Promise<CardResult> => {
     try {
       const { number, month, year, cvv, holder, address, city, state, zip, country, phone, email } = cardData;
-      const formattedExpiry = `${month}/${year.length === 2 ? year : year.slice(-2)}`;
       
       // Format the card string to include all details for display
       let cardString = `${number}|${month}|${year}|${cvv}`;
       if (holder) cardString += `|${holder}`;
       
-      // If using local Luhn validation
-      if (processor === 'luhn') {
-        // First check if the card number is valid using Luhn
-        if (!isValidCreditCard(number)) {
-          return {
-            card: cardString,
-            message: 'Invalid (Luhn Check Failed)',
-            code: 'invalid_card',
-            status: 'DEAD',
-            details: {
-              brand: getCardBrandInfo(number).brand,
-              last4: number.slice(-4),
-              funding: getCardBrandInfo(number).type,
-              country: 'Unknown'
-            }
-          };
-        }
-        
-        // Simulate API behavior with randomized responses
-        const randomNumber = Math.random();
-        let status = 'UNKNOWN';
-        let message = 'Card processed';
-        let isSuccess = false;
-        
-        if (randomNumber < 0.2) {
-          // ~20% chance for LIVE card
-          status = 'LIVE';
-          message = 'Live | Charge $4.99 [GATE:01]';
-          isSuccess = true;
-        } else if (randomNumber < 0.9) {
-          // ~70% chance for DEAD card
-          status = 'DEAD';
-          message = 'Dead | Charge $0.00 [GATE:01]';
-          isSuccess = false;
-        } else {
-          // ~10% chance for UNKNOWN card
-          status = 'UNKNOWN';
-          message = 'Unknown | Charge N/A [GATE:01]';
-          isSuccess = false;
-        }
-        
-        // Get card brand information
-        const cardInfo = getCardBrandInfo(number);
-        
+      // First check if the card number is valid using Luhn
+      if (!isValidCreditCard(number)) {
         return {
           card: cardString,
-          message: message,
-          code: status.toLowerCase(),
-          status: status,
+          message: 'Invalid (Luhn Check Failed)',
+          code: 'invalid_card',
+          status: 'DEAD',
           details: {
-            brand: cardInfo.brand,
+            brand: getCardBrandInfo(number).brand,
             last4: number.slice(-4),
-            funding: cardInfo.type,
+            funding: getCardBrandInfo(number).type,
             country: 'Unknown'
-          },
-          binData: {
-            number: {
-              length: number.length,
-              luhn: true
-            },
-            scheme: cardInfo.brand,
-            type: cardInfo.type,
-            brand: cardInfo.brand,
-            prepaid: false,
-            country: {
-              numeric: '',
-              alpha2: '',
-              name: 'Unknown',
-              emoji: '🌐',
-              currency: '',
-              latitude: 0,
-              longitude: 0
-            },
-            bank: {
-              name: '',
-              url: '',
-              phone: '',
-              city: ''
-            }
           }
         };
-      } else {
-        // Use the API-based processors
-        
-        // Prepare request data based on selected processor
-        const requestData: any = {
-          number,
-          expiry: formattedExpiry,
-          cvv,
-          holder: holder || 'Card Check',
-          processor: processor === 'stripe-custom' ? 'stripe' : processor
-        };
-        
-        // Add additional customer details if available
-        if (address) requestData.address = address;
-        if (city) requestData.city = city;
-        if (state) requestData.state = state;
-        if (zip) requestData.zip = zip;
-        if (country) requestData.country = country;
-        if (phone) requestData.phone = phone;
-        if (email) requestData.email = email;
-        
-        // Add stripe key if it's provided and the processor is stripe-custom
-        if (processor === 'stripe-custom' && stripeKey.trim()) {
-          requestData.stripeKey = stripeKey.trim();
-        }
-        
-        const response = await apiRequest('POST', '/api/validate-card', requestData);
-        const data = await response.json();
-        
-        return {
-          card: cardString,
-          message: data.message,
-          code: data.code,
-          status: data.status || (data.success ? 'LIVE' : 'DEAD'), // Ensure status is always present
-          details: data.details,
-          binData: data.binData
-        };
       }
+      
+      // Simulate API behavior with randomized responses
+      const randomNumber = Math.random();
+      let status = 'UNKNOWN';
+      let message = 'Card processed';
+      let isSuccess = false;
+      
+      if (randomNumber < 0.2) {
+        // ~20% chance for LIVE card
+        status = 'LIVE';
+        message = 'Live | Charge $4.99 [GATE:01]';
+        isSuccess = true;
+      } else if (randomNumber < 0.9) {
+        // ~70% chance for DEAD card
+        status = 'DEAD';
+        message = 'Dead | Charge $0.00 [GATE:01]';
+        isSuccess = false;
+      } else {
+        // ~10% chance for UNKNOWN card
+        status = 'UNKNOWN';
+        message = 'Unknown | Charge N/A [GATE:01]';
+        isSuccess = false;
+      }
+      
+      // Get card brand information
+      const cardInfo = getCardBrandInfo(number);
+      
+      return {
+        card: cardString,
+        message: message,
+        code: status.toLowerCase(),
+        status: status,
+        details: {
+          brand: cardInfo.brand,
+          last4: number.slice(-4),
+          funding: cardInfo.type,
+          country: 'Unknown'
+        },
+        binData: {
+          number: {
+            length: number.length,
+            luhn: true
+          },
+          scheme: cardInfo.brand,
+          type: cardInfo.type,
+          brand: cardInfo.brand,
+          prepaid: false,
+          country: {
+            numeric: '',
+            alpha2: '',
+            name: 'Unknown',
+            emoji: '🌐',
+            currency: '',
+            latitude: 0,
+            longitude: 0
+          },
+          bank: {
+            name: '',
+            url: '',
+            phone: '',
+            city: ''
+          }
+        }
+      };
     } catch (error) {
       return {
         card: `${cardData.number}|${cardData.month}|${cardData.year}|${cardData.cvv}`,
@@ -539,32 +498,12 @@ export default function CheckerLayout() {
                   value={processor}
                   onChange={(e) => {
                     setProcessor(e.target.value);
-                    if (e.target.value === 'stripe-custom') {
-                      setShowStripeKey(true);
-                    } else {
-                      setShowStripeKey(false);
-                    }
                   }}
                   className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-amber-400 text-sm"
                 >
-                  <option value="luhn">LUHN CHECKER</option>
-                  <option value="stripe">Stripe (Default)</option>
-                  <option value="stripe-custom">Stripe (Custom Key)</option>
+                  <option value="luhn">PRO CHECK</option>
                 </select>
               </div>
-              
-              {/* Show Stripe key input if stripe-custom processor is selected */}
-              {showStripeKey && (
-                <div className="text-zinc-400 text-sm flex items-center space-x-2">
-                  <input
-                    type="text"
-                    value={stripeKey}
-                    onChange={(e) => setStripeKey(e.target.value)}
-                    placeholder="Enter Stripe SK Key"
-                    className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-amber-400 text-sm w-48"
-                  />
-                </div>
-              )}
             </div>
             
             {/* Action buttons row */}
