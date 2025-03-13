@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Logo } from './Logo';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -13,7 +14,7 @@ export default function Navbar() {
     const checkAuth = async () => {
       try {
         const response = await apiRequest('GET', '/api/me');
-        if (response.ok) {
+        if (response.success && response.user) {
           setIsLoggedIn(true);
         } else {
           setIsLoggedIn(false);

@@ -433,22 +433,41 @@ ${binData ? `
       const binData = await lookupBIN(binNumber);
       
       if (binData) {
-        return res.json(binData);
+        return res.json({
+          success: true,
+          data: binData
+        });
       }
       
       // Fallback to basic card info if BIN lookup fails
       const cardInfo = checker.getCardBrandInfo(bin);
       
+      // Return a properly structured response that matches what the frontend expects
       res.json({
-        scheme: cardInfo.brand,
-        type: cardInfo.type,
-        brand: cardInfo.brand,
-        country: {
-          name: "Unknown",
-          emoji: "🌐"
-        },
-        bank: {
-          name: "Unknown Bank"
+        success: true,
+        data: {
+          scheme: cardInfo.brand,
+          type: cardInfo.type,
+          brand: cardInfo.brand,
+          number: {
+            length: 16,
+            luhn: true
+          },
+          country: {
+            name: "Unknown",
+            emoji: "🌐",
+            currency: "USD",
+            numeric: "",
+            alpha2: "",
+            latitude: 0,
+            longitude: 0
+          },
+          bank: {
+            name: "Unknown Bank",
+            url: "",
+            phone: "",
+            city: ""
+          }
         }
       });
       
