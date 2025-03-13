@@ -156,6 +156,21 @@ export default function CheckerLayout() {
     }
   }
 
+  // Function to look up BIN data from the server
+  const lookupBIN = async (binNumber: string): Promise<any> => {
+    try {
+      const response = await fetch(`/api/bin-lookup?bin=${binNumber.substring(0, 6)}`);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("BIN lookup error:", error);
+      return null;
+    }
+  };
+
   const checkCard = async (cardData: { 
     number: string, 
     month: string, 
@@ -193,6 +208,9 @@ export default function CheckerLayout() {
         };
       }
       
+      // Look up BIN data for the card
+      const binData = await lookupBIN(number);
+      
       // Simulate API behavior with randomized responses
       const randomNumber = Math.random();
       let status = 'UNKNOWN';
@@ -219,6 +237,33 @@ export default function CheckerLayout() {
       // Get card brand information
       const cardInfo = getCardBrandInfo(number);
       
+      // Default BIN data if lookup failed
+      const defaultBinData = {
+        number: {
+          length: number.length,
+          luhn: true
+        },
+        scheme: cardInfo.brand,
+        type: cardInfo.type,
+        brand: cardInfo.brand,
+        prepaid: false,
+        country: {
+          numeric: '',
+          alpha2: '',
+          name: 'Unknown',
+          emoji: '🌐',
+          currency: '',
+          latitude: 0,
+          longitude: 0
+        },
+        bank: {
+          name: 'Unknown Bank',
+          url: '',
+          phone: '',
+          city: ''
+        }
+      };
+      
       return {
         card: cardString,
         message: message,
@@ -228,33 +273,9 @@ export default function CheckerLayout() {
           brand: cardInfo.brand,
           last4: number.slice(-4),
           funding: cardInfo.type,
-          country: 'Unknown'
+          country: binData?.country?.name || 'Unknown'
         },
-        binData: {
-          number: {
-            length: number.length,
-            luhn: true
-          },
-          scheme: cardInfo.brand,
-          type: cardInfo.type,
-          brand: cardInfo.brand,
-          prepaid: false,
-          country: {
-            numeric: '',
-            alpha2: '',
-            name: 'Unknown',
-            emoji: '🌐',
-            currency: '',
-            latitude: 0,
-            longitude: 0
-          },
-          bank: {
-            name: '',
-            url: '',
-            phone: '',
-            city: ''
-          }
-        }
+        binData: binData || defaultBinData
       };
     } catch (error) {
       return {
@@ -265,6 +286,73 @@ export default function CheckerLayout() {
     }
   };
   
+  const checkCardWithStripe = async (cardData: { 
+    number: string, 
+    month: string, 
+    year: string, 
+    cvv: string,
+    holder?: string,
+    address?: string,
+    city?: string,
+    state?: string,
+    zip?: string,
+    country?: string,
+    phone?: string,
+    email?: string
+  }) => {
+    try {
+      // Format the card string to include all details for display
+      let cardString = `${cardData.number}|${cardData.month}|${cardData.year}|${cardData.cvv}`;
+      if (cardData.holder) cardString += `|${cardData.holder}`;
+      
+      // Call API with the Stripe key
+      const response = await fetch('/api/check-card', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          card: {
+            number: cardData.number,
+            exp_month: cardData.month,
+            exp_year: cardData.year,
+            cvc: cardData.cvv,
+            name: cardData.holder || 'Unknown',
+          },
+          processor: 'stripe',
+          stripeKey: stripeKey
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      // Add additional card data to display
+      return {
+        card: cardString,
+        message: result.message || 'Card processed',
+        code: result.code || 'unknown',
+        status: result.status || 'UNKNOWN',
+        details: result.details || {
+          brand: getCardBrandInfo(cardData.number).brand,
+          last4: cardData.number.slice(-4),
+          funding: getCardBrandInfo(cardData.number).type,
+          country: 'Unknown'
+        },
+        binData: result.binData || null
+      };
+    } catch (error) {
+      return {
+        card: `${cardData.number}|${cardData.month}|${cardData.year}|${cardData.cvv}`,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        status: 'UNKNOWN'
+      };
+    }
+  };
+
   const checkCards = async () => {
     if (!input.trim()) return;
     
@@ -294,7 +382,14 @@ export default function CheckerLayout() {
       
       if (cardData) {
         try {
-          const result = await checkCard(cardData);
+          let result;
+          
+          // Use appropriate processor
+          if (processor === 'stripe' && stripeKey) {
+            result = await checkCardWithStripe(cardData);
+          } else {
+            result = await checkCard(cardData);
+          }
           
           // Check the status to determine card classification
           if (result.status === 'LIVE') {
@@ -498,13 +593,28 @@ export default function CheckerLayout() {
                   value={processor}
                   onChange={(e) => {
                     setProcessor(e.target.value);
+                    setShowStripeKey(e.target.value === 'stripe');
                   }}
                   className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-amber-400 text-sm"
                 >
                   <option value="luhn">PRO CHECK</option>
+                  <option value="stripe">STRIPE</option>
                 </select>
               </div>
             </div>
+            
+            {/* Stripe API key input field */}
+            {showStripeKey && (
+              <div className="flex items-center space-x-2 mt-2">
+                <input
+                  type="text"
+                  value={stripeKey}
+                  onChange={(e) => setStripeKey(e.target.value)}
+                  placeholder="Enter Stripe Secret Key"
+                  className="w-full bg-zinc-800 border border-zinc-700 text-zinc-200 rounded px-2 py-1.5 text-sm"
+                />
+              </div>
+            )}
             
             {/* Action buttons row */}
             <div className="flex items-center space-x-2">
