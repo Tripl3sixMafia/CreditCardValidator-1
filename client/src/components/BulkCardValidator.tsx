@@ -1,6 +1,20 @@
 import { useState, useRef, ChangeEvent } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { luhnCheck } from "@/utils/cardValidation";
+import BinDisplay, { BinData } from "./BinDisplay";
+
+type CardResultWithBIN = {
+  card: string;
+  message: string;
+  details?: {
+    brand?: string;
+    last4?: string;
+    funding?: string;
+    country?: string;
+  };
+  binData?: any;
+  status: CardStatus;
+};
 
 type BulkValidationResult = {
   validCards: string[];
@@ -8,6 +22,7 @@ type BulkValidationResult = {
     card: string;
     reason: string;
   }>;
+  detailedResults: CardResultWithBIN[];
   totalProcessed: number;
   validCount: number;
   invalidCount: number;
@@ -71,7 +86,14 @@ export default function BulkCardValidator() {
     return luhnCheck(number);
   }
   
-  const validateCard = async (cardData: string): Promise<{ success: boolean; message: string; code?: string; status?: CardStatus }> => {
+  const validateCard = async (cardData: string): Promise<{ 
+    success: boolean; 
+    message: string; 
+    code?: string; 
+    status?: CardStatus;
+    binData?: any;
+    details?: any;
+  }> => {
     try {
       // Parse card data in format: number|month|year|cvv
       const [number, month, year, cvv] = cardData.split('|');
@@ -83,6 +105,14 @@ export default function BulkCardValidator() {
         };
       }
       
+      // Get BIN data regardless of processor
+      let binData = null;
+      try {
+        binData = await lookupBIN(number);
+      } catch (err) {
+        console.error("Failed to fetch BIN data:", err);
+      }
+      
       // Determine if using API or local validation
       if (processor === 'luhn') {
         // Perform local Luhn check
@@ -90,11 +120,12 @@ export default function BulkCardValidator() {
           return { 
             success: false, 
             message: 'Invalid (Luhn Check Failed)', 
-            status: 'DEAD' 
+            status: 'DEAD',
+            binData
           };
         }
         
-        // Simulate API behavior with randomized responses (like in the provided code)
+        // Simulate API behavior with randomized responses
         const randomNumber = Math.random();
         let status: CardStatus = 'UNKNOWN';
         let message = 'Card processed';
@@ -117,11 +148,21 @@ export default function BulkCardValidator() {
           isSuccess = false;
         }
         
+        // Create details object with bank and country info
+        const details = {
+          brand: binData?.brand || binData?.scheme || 'Unknown',
+          last4: number.slice(-4),
+          funding: binData?.type || 'Unknown',
+          country: binData?.country?.name || 'Unknown'
+        };
+        
         return {
           success: isSuccess,
           message: message,
           status: status,
-          code: status.toLowerCase()
+          code: status.toLowerCase(),
+          binData,
+          details
         };
       } else {
         // Use the backend API for validation instead
@@ -153,6 +194,7 @@ export default function BulkCardValidator() {
   const processCardBatch = async (cards: string[], startIndex: number, batchSize: number) => {
     const validCards: string[] = [];
     const invalidCards: Array<{ card: string; reason: string }> = [];
+    const detailedResults: CardResultWithBIN[] = [];
     
     const batch = cards.slice(startIndex, startIndex + batchSize);
     
@@ -162,6 +204,16 @@ export default function BulkCardValidator() {
       if (cardData) {
         const result = await validateCard(cardData);
         
+        // Create detailed result with BIN data
+        const detailedResult: CardResultWithBIN = {
+          card: cardData,
+          message: result.message,
+          status: result.status || 'UNKNOWN',
+          details: result.details,
+          binData: result.binData
+        };
+        
+        // Add to appropriate lists
         if (result.success) {
           validCards.push(`${cardData} -> [${result.message}]`);
         } else {
@@ -171,13 +223,16 @@ export default function BulkCardValidator() {
           });
         }
         
+        // Add to detailed results regardless of validity
+        detailedResults.push(detailedResult);
+        
         // Update progress
         const currentProgress = startIndex + i + 1;
         setProgress(Math.floor((currentProgress / cards.length) * 100));
       }
     }
     
-    return { validCards, invalidCards };
+    return { validCards, invalidCards, detailedResults };
   };
   
   const handleBulkValidation = async () => {
@@ -199,6 +254,7 @@ export default function BulkCardValidator() {
       const batchSize = 10; // Process 10 cards at a time
       let validCards: string[] = [];
       let invalidCards: Array<{ card: string; reason: string }> = [];
+      let detailedResults: CardResultWithBIN[] = [];
       
       // Process cards in batches
       for (let i = 0; i < cards.length; i += batchSize) {
@@ -206,12 +262,14 @@ export default function BulkCardValidator() {
         
         validCards = [...validCards, ...batchResult.validCards];
         invalidCards = [...invalidCards, ...batchResult.invalidCards];
+        detailedResults = [...detailedResults, ...batchResult.detailedResults];
       }
       
       // Set final results
       setResults({
         validCards,
         invalidCards,
+        detailedResults,
         totalProcessed: cards.length,
         validCount: validCards.length,
         invalidCount: invalidCards.length
@@ -226,7 +284,7 @@ export default function BulkCardValidator() {
     }
   };
   
-  const downloadResults = (type: 'valid' | 'invalid') => {
+  const downloadResults = (type: 'valid' | 'invalid' | 'detailed') => {
     if (!results) return;
     
     let content = '';
@@ -235,12 +293,38 @@ export default function BulkCardValidator() {
     if (type === 'valid') {
       content = results.validCards.join('\n');
       filename = 'valid_cards.txt';
-    } else {
+    } else if (type === 'invalid') {
       content = results.invalidCards.map(card => `${card.card} | Reason: ${card.reason}`).join('\n');
       filename = 'invalid_cards.txt';
+    } else if (type === 'detailed') {
+      // Create detailed CSV with BIN information
+      const headers = [
+        'Card Number', 'Status', 'Message', 'Brand', 'Type', 
+        'Country', 'Bank Name', 'Bank URL', 'Bank Phone'
+      ].join(',');
+      
+      const rows = results.detailedResults.map(result => {
+        const card = result.card.split('|')[0]; // Get just the card number
+        const status = result.status || 'UNKNOWN';
+        const message = result.message?.replace(/,/g, ' ') || '';
+        const brand = result.binData?.brand || result.binData?.scheme || '';
+        const type = result.binData?.type || '';
+        const country = result.binData?.country?.name || '';
+        const bankName = result.binData?.bank?.name || '';
+        const bankUrl = result.binData?.bank?.url || '';
+        const bankPhone = result.binData?.bank?.phone || '';
+        
+        return [
+          card, status, message, brand, type,
+          country, bankName, bankUrl, bankPhone
+        ].join(',');
+      });
+      
+      content = [headers, ...rows].join('\n');
+      filename = 'detailed_card_results.csv';
     }
     
-    const blob = new Blob([content], { type: 'text/plain' });
+    const blob = new Blob([content], { type: type === 'detailed' ? 'text/csv' : 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -368,6 +452,77 @@ export default function BulkCardValidator() {
               </div>
             </div>
             
+            {/* BIN Information */}
+            {results.detailedResults && results.detailedResults.length > 0 && (
+              <div className="border-t border-zinc-800 p-4">
+                <h3 className="text-white font-medium mb-3">Card Details</h3>
+                <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                  {results.detailedResults.map((result, index) => (
+                    <div 
+                      key={index}
+                      className={`p-3 rounded-md border ${
+                        result.status === 'LIVE' 
+                          ? 'bg-green-900/20 border-green-800' 
+                          : result.status === 'DEAD'
+                            ? 'bg-red-900/20 border-red-800'
+                            : 'bg-amber-900/20 border-amber-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center">
+                          <span className={`h-5 w-5 rounded-full flex items-center justify-center text-xs ${
+                            result.status === 'LIVE' 
+                              ? 'bg-green-600' 
+                              : result.status === 'DEAD'
+                                ? 'bg-red-600'
+                                : 'bg-amber-600'
+                          }`}>
+                            {result.status === 'LIVE' ? '✓' : result.status === 'DEAD' ? '✗' : '?'}
+                          </span>
+                          <span className="ml-2 text-xs font-semibold text-white">{result.card}</span>
+                        </div>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                          result.status === 'LIVE' 
+                            ? 'bg-green-900 text-green-400' 
+                            : result.status === 'DEAD'
+                              ? 'bg-red-900 text-red-400'
+                              : 'bg-amber-900 text-amber-400'
+                        }`}>
+                          {result.status}
+                        </span>
+                      </div>
+                      
+                      <p className="text-xs text-zinc-400 mb-2">{result.message}</p>
+                      
+                      {result.details && (
+                        <div className="grid grid-cols-2 gap-2 text-xs text-zinc-400 mb-2">
+                          {result.details.brand && (
+                            <div>Brand: <span className="text-white">{result.details.brand}</span></div>
+                          )}
+                          {result.details.last4 && (
+                            <div>Last4: <span className="text-white">{result.details.last4}</span></div>
+                          )}
+                          {result.details.funding && (
+                            <div>Type: <span className="text-white">{result.details.funding}</span></div>
+                          )}
+                          {result.details.country && (
+                            <div>Country: <span className="text-white">{result.details.country}</span></div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Use BinDisplay component for consistency with single card validation */}
+                      {result.binData && (
+                        <div className="mt-2">
+                          <BinDisplay binData={result.binData as BinData} className="bg-zinc-900/60 text-xs p-2 rounded" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             <div className="p-4 border-t border-zinc-800 flex flex-col md:flex-row gap-3">
               <button
                 onClick={() => downloadResults('valid')}
@@ -382,6 +537,21 @@ export default function BulkCardValidator() {
                 disabled={results.invalidCount === 0}
               >
                 Download Invalid Cards
+              </button>
+            </div>
+            
+            {/* Detailed CSV Download */}
+            <div className="px-4 pb-4 flex">
+              <button
+                onClick={() => downloadResults('detailed')}
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white py-2 px-3 rounded-md font-medium text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download Detailed CSV (with BIN data)
               </button>
             </div>
           </div>
