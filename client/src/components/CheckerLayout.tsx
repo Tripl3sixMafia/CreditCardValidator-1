@@ -35,7 +35,9 @@ export default function CheckerLayout() {
     total: 0
   });
   const [progress, setProgress] = useState<number>(0);
-  const [processor, setProcessor] = useState<string>("stripe");
+  const [processor, setProcessor] = useState<string>("chker");
+  const [stripeKey, setStripeKey] = useState<string>("");
+  const [showStripeKey, setShowStripeKey] = useState<boolean>(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   
   const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -82,13 +84,21 @@ export default function CheckerLayout() {
       const { number, month, year, cvv } = cardData;
       const formattedExpiry = `${month}/${year.length === 2 ? year : year.slice(-2)}`;
       
-      const response = await apiRequest('POST', '/api/validate-card', {
+      // Prepare request data based on selected processor
+      const requestData: any = {
         number,
         expiry: formattedExpiry,
         cvv,
         holder: 'Card Check',
-        processor
-      });
+        processor: processor === 'stripe-custom' ? 'stripe' : processor
+      };
+      
+      // Add stripe key if it's provided and the processor is stripe-custom
+      if (processor === 'stripe-custom' && stripeKey.trim()) {
+        requestData.stripeKey = stripeKey.trim();
+      }
+      
+      const response = await apiRequest('POST', '/api/validate-card', requestData);
       
       const data = await response.json();
       
@@ -336,13 +346,34 @@ export default function CheckerLayout() {
               <span>Processor:</span>
               <select 
                 value={processor}
-                onChange={(e) => setProcessor(e.target.value)}
+                onChange={(e) => {
+                  setProcessor(e.target.value);
+                  if (e.target.value === 'stripe-custom') {
+                    setShowStripeKey(true);
+                  } else {
+                    setShowStripeKey(false);
+                  }
+                }}
                 className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-amber-400 text-sm"
               >
-                <option value="stripe">Stripe</option>
-                <option value="paypal" disabled>PayPal</option>
+                <option value="chker">CHKER.CC API</option>
+                <option value="stripe">Stripe (Default)</option>
+                <option value="stripe-custom">Stripe (Custom Key)</option>
               </select>
             </div>
+            
+            {/* Show Stripe key input if stripe-custom processor is selected */}
+            {showStripeKey && (
+              <div className="text-zinc-400 text-sm flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={stripeKey}
+                  onChange={(e) => setStripeKey(e.target.value)}
+                  placeholder="Enter Stripe SK Key"
+                  className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-amber-400 text-sm w-48"
+                />
+              </div>
+            )}
             
             <div className="flex items-center space-x-2">
               <button

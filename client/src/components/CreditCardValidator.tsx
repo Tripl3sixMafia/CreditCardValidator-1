@@ -159,29 +159,61 @@ export default function CreditCardValidator() {
         {/* Processor Selection */}
         <div className="mx-6 mt-4 mb-3">
           <p className="text-xs text-zinc-400 mb-2 font-medium">SELECT PROCESSOR</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button 
-              onClick={() => setSelectedProcessor('stripe')}
+              onClick={() => {
+                setSelectedProcessor('chker');
+                setShowStripeKey(false);
+              }}
               className={`py-2 px-3 text-xs rounded-md border ${
-                selectedProcessor === 'stripe' 
+                selectedProcessor === 'chker' 
                   ? 'bg-amber-900/30 border-amber-700 text-amber-400' 
                   : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800'
               }`}
             >
-              STRIPE
+              CHKER.CC API
             </button>
             <button 
-              onClick={() => setSelectedProcessor('paypal')}
+              onClick={() => {
+                setSelectedProcessor('stripe');
+                setShowStripeKey(false);
+              }}
               className={`py-2 px-3 text-xs rounded-md border ${
-                selectedProcessor === 'paypal' 
+                selectedProcessor === 'stripe' && !showStripeKey
                   ? 'bg-amber-900/30 border-amber-700 text-amber-400' 
                   : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800'
-              } opacity-50`}
-              disabled
+              }`}
             >
-              PAYPAL (Coming Soon)
+              STRIPE (Default)
+            </button>
+            <button 
+              onClick={() => {
+                setSelectedProcessor('stripe');
+                setShowStripeKey(true);
+              }}
+              className={`py-2 px-3 text-xs rounded-md border ${
+                selectedProcessor === 'stripe' && showStripeKey
+                  ? 'bg-amber-900/30 border-amber-700 text-amber-400' 
+                  : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800'
+              }`}
+            >
+              STRIPE (Custom)
             </button>
           </div>
+          
+          {/* Stripe Key Input Field (shown only when custom Stripe is selected) */}
+          {selectedProcessor === 'stripe' && showStripeKey && (
+            <div className="mt-2">
+              <input
+                type="text"
+                value={stripeKey}
+                onChange={(e) => setStripeKey(e.target.value)}
+                placeholder="Enter your Stripe Secret Key (sk_...)"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-md px-3 py-2 text-xs text-amber-300 placeholder:text-zinc-500"
+              />
+              <p className="mt-1 text-xs text-zinc-500">Your key will be used only for this check and not stored.</p>
+            </div>
+          )}
         </div>
 
         {/* Individual Field Validation Status */}
@@ -226,21 +258,12 @@ export default function CreditCardValidator() {
               </div>
               <div className="ml-3">
                 <div className="flex items-center">
-                  <h3 className="text-sm font-medium text-white">
-                    {validationResult.isValid ? 'Card Valid' : 'Card Invalid'}
-                  </h3>
-                </div>
-                <div className="mt-1 text-sm text-gray-300">
-                  {validationResult.message || 'No additional details available'}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
                   <span className={`text-xs font-semibold uppercase px-2 py-0.5 rounded ${
                     validationResult.isValid ? 'bg-green-900 text-green-400' : 'bg-red-900 text-red-400'
                   }`}>
-                    {selectedProcessor}
+                    {selectedProcessor === 'chker' ? 'CHKER.CC' : 
+                     (selectedProcessor === 'stripe' && showStripeKey) ? 'STRIPE (Custom)' : 
+                     'STRIPE'}
                   </span>
                   {validationResult.code && (
                     <span className="ml-2 text-xs text-zinc-500">Code: {validationResult.code}</span>
@@ -272,7 +295,7 @@ export default function CreditCardValidator() {
             )}
             
             {/* BIN Database Information */}
-            {validationResult.isValid && validationResult.binData && (
+            {validationResult.binData && (
               <div className="mt-4 pl-11">
                 <BinDisplay binData={validationResult.binData} />
               </div>
