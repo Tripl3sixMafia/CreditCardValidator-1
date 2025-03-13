@@ -1,5 +1,6 @@
 import { useState, useRef, ChangeEvent } from "react";
 import { apiRequest } from "@/lib/queryClient";
+import { luhnCheck } from "@/utils/cardValidation";
 
 type BulkValidationResult = {
   validCards: string[];
@@ -12,13 +13,15 @@ type BulkValidationResult = {
   invalidCount: number;
 };
 
+type CardStatus = 'LIVE' | 'DEAD' | 'UNKNOWN';
+
 export default function BulkCardValidator() {
   const [isLoading, setIsLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [results, setResults] = useState<BulkValidationResult | null>(null);
   const [progress, setProgress] = useState<number>(0);
   const [totalCards, setTotalCards] = useState<number>(0);
-  const [processor, setProcessor] = useState<string>("stripe");
+  const [processor, setProcessor] = useState<string>("luhn");
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -40,33 +43,94 @@ export default function BulkCardValidator() {
     }
   };
   
-  const validateCard = async (cardData: string): Promise<{ success: boolean; message: string; code?: string }> => {
+  // Function to perform Luhn check (standard and Amex)
+  function isValidCreditCard(number: string): boolean {
+    // Remove non-digit characters
+    number = number.replace(/\D/g, '');
+
+    // Check if it's potentially a valid credit card number
+    if (!/^(?:3[47][0-9]{13}|4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|6(?:011|5[0-9][0-9])[0-9]{12}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\d{3})\d{11})$/.test(number)) {
+      return false;
+    }
+
+    return luhnCheck(number);
+  }
+  
+  const validateCard = async (cardData: string): Promise<{ success: boolean; message: string; code?: string; status?: CardStatus }> => {
     try {
       // Parse card data in format: number|month|year|cvv
       const [number, month, year, cvv] = cardData.split('|');
       if (!number || !month || !year || !cvv) {
-        return { success: false, message: 'Invalid card format' };
+        return { 
+          success: false, 
+          message: 'Invalid card format', 
+          status: 'DEAD' 
+        };
       }
       
-      // Format the data for API
-      const formattedExpiry = `${month}/${year.slice(-2)}`;
-      
-      // Make API call
-      const response = await apiRequest('POST', '/api/validate-card', {
-        number: number.trim(),
-        expiry: formattedExpiry,
-        cvv: cvv.trim(),
-        holder: 'Bulk Check',
-        processor
-      });
-      
-      const data = await response.json();
-      return data;
+      // Determine if using API or local validation
+      if (processor === 'luhn') {
+        // Perform local Luhn check
+        if (!isValidCreditCard(number)) {
+          return { 
+            success: false, 
+            message: 'Invalid (Luhn Check Failed)', 
+            status: 'DEAD' 
+          };
+        }
+        
+        // Simulate API behavior with randomized responses (like in the provided code)
+        const randomNumber = Math.random();
+        let status: CardStatus = 'UNKNOWN';
+        let message = 'Card processed';
+        let isSuccess = false;
+        
+        if (randomNumber < 0.2) {
+          // ~20% chance for LIVE card
+          status = 'LIVE';
+          message = 'Live | Charge $4.99 [GATE:01]';
+          isSuccess = true;
+        } else if (randomNumber < 0.9) {
+          // ~70% chance for DEAD card
+          status = 'DEAD';
+          message = 'Dead | Charge $0.00 [GATE:01]';
+          isSuccess = false;
+        } else {
+          // ~10% chance for UNKNOWN card
+          status = 'UNKNOWN';
+          message = 'Unknown | Charge N/A [GATE:01]';
+          isSuccess = false;
+        }
+        
+        return {
+          success: isSuccess,
+          message: message,
+          status: status,
+          code: status.toLowerCase()
+        };
+      } else {
+        // Use the backend API for validation instead
+        // Format the data for API
+        const formattedExpiry = `${month}/${year.slice(-2)}`;
+        
+        // Make API call
+        const response = await apiRequest('POST', '/api/validate-card', {
+          number: number.trim(),
+          expiry: formattedExpiry,
+          cvv: cvv.trim(),
+          holder: 'Bulk Check',
+          processor
+        });
+        
+        const data = await response.json();
+        return data;
+      }
     } catch (error) {
       console.error('Error validating card:', error);
       return { 
         success: false, 
-        message: error instanceof Error ? error.message : 'Unknown error' 
+        message: error instanceof Error ? error.message : 'Unknown error',
+        status: 'DEAD'
       };
     }
   };
@@ -84,7 +148,7 @@ export default function BulkCardValidator() {
         const result = await validateCard(cardData);
         
         if (result.success) {
-          validCards.push(cardData);
+          validCards.push(`${cardData} -> [${result.message}]`);
         } else {
           invalidCards.push({
             card: cardData,
@@ -192,7 +256,17 @@ export default function BulkCardValidator() {
         {/* Processor Selection */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-zinc-300 mb-2">Select Processor</label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
+            <button 
+              onClick={() => setProcessor('luhn')}
+              className={`py-2 px-3 text-xs rounded-md border ${
+                processor === 'luhn' 
+                  ? 'bg-amber-900/30 border-amber-700 text-amber-400' 
+                  : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:bg-zinc-800'
+              }`}
+            >
+              LUHN CHECKER
+            </button>
             <button 
               onClick={() => setProcessor('stripe')}
               className={`py-2 px-3 text-xs rounded-md border ${
@@ -212,7 +286,7 @@ export default function BulkCardValidator() {
               } opacity-50`}
               disabled
             >
-              PAYPAL (Coming Soon)
+              PAYPAL (Soon)
             </button>
           </div>
         </div>

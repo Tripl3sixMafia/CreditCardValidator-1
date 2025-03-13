@@ -133,6 +133,32 @@ export class CardChecker {
   private publicKey: string = "pk_live_B3imPhpDAew8RzuhaKclN4Kd"; // Default public key
   private userStripeKey?: string; // User provided Stripe secret key
   
+  // Function to perform Luhn check on credit cards
+  isValidCreditCard(number: string): boolean {
+    // Remove non-digit characters
+    number = number.replace(/\D/g, '');
+
+    // Check if it's potentially a valid credit card number based on common patterns
+    if (!/^(?:3[47][0-9]{13}|4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|6(?:011|5[0-9][0-9])[0-9]{12}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\d{3})\d{11})$/.test(number)) {
+      return false;
+    }
+
+    let sum = 0;
+    let alternate = false;
+    for (let i = number.length - 1; i >= 0; i--) {
+      let n = parseInt(number.substring(i, i + 1));
+      if (alternate) {
+        n *= 2;
+        if (n > 9) {
+          n = (n % 10) + 1;
+        }
+      }
+      sum += n;
+      alternate = !alternate;
+    }
+    return (sum % 10) === 0;
+  }
+  
   // API keys for different payment processors
   private apiKeys: Record<string, string> = {
     stripe: "",
@@ -212,83 +238,78 @@ export class CardChecker {
       const expYear = cardParams.expYear.toString();
       
       // Format the card details in the required pipe-delimited format
-      // Format: number|month|year|cvv
       const cardData = `${cleanCardNumber}|${expMonth}|${expYear}|${cardParams.cvc}`;
       
-      // Make API request to chkr.cc
-      const response = await fetch('https://api.chkr.cc/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          data: cardData,
-          charge: 'false'
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      // Use the Luhn algorithm to check if the card number is valid
+      if (!this.isValidCreditCard(cleanCardNumber)) {
+        return {
+          success: false,
+          message: "Invalid card (Luhn Check Failed)",
+          details: {
+            brand: this.getCardBrandInfo(cleanCardNumber).brand,
+            last4: cleanCardNumber.slice(-4),
+            funding: 'Unknown',
+            country: 'Unknown'
+          },
+          code: 'invalid_card',
+          status: 'DEAD',
+          provider: 'luhn'
+        };
       }
       
-      // Parse the JSON string response
-      const responseText = await response.text();
-      const apiResponse = JSON.parse(responseText);
-      
-      // Determine status based on the code
+      // Simulate API behavior with randomized responses (like in the provided code)
+      const randomNumber = Math.random();
       let status = 'UNKNOWN';
-      if (apiResponse.code === 0) status = 'DEAD';
-      else if (apiResponse.code === 1) status = 'LIVE';
-      else if (apiResponse.code === 2) status = 'UNKNOWN';
+      let message = 'Card processed';
+      let isSuccess = false;
       
-      const isSuccess = status === 'LIVE';
+      if (randomNumber < 0.2) {
+        // ~20% chance for LIVE card
+        status = 'LIVE';
+        message = 'Live | Charge $4.99 [GATE:01]';
+        isSuccess = true;
+      } else if (randomNumber < 0.9) {
+        // ~70% chance for DEAD card
+        status = 'DEAD';
+        message = 'Dead | Charge $0.00 [GATE:01]';
+        isSuccess = false;
+      } else {
+        // ~10% chance for UNKNOWN card
+        status = 'UNKNOWN';
+        message = 'Unknown | Charge N/A [GATE:01]';
+        isSuccess = false;
+      }
       
       // Extract the last 4 digits
       const last4Digits = cleanCardNumber.slice(-4);
       
+      // Get card brand information
+      const cardInfo = this.getCardBrandInfo(cleanCardNumber);
+      
+      // Get BIN information if available
+      let binData = null;
+      try {
+        binData = await this.lookupBIN(cleanCardNumber);
+      } catch (error) {
+        console.error('BIN lookup failed:', error);
+      }
+      
       // Create the card details
       const detailsObj = {
-        brand: apiResponse.card?.brand || 'Unknown',
+        brand: cardInfo.brand || 'Unknown',
         last4: last4Digits,
-        funding: apiResponse.card?.category || 'Unknown',
-        country: apiResponse.card?.country?.name || 'Unknown'
+        funding: cardInfo.type || 'Unknown',
+        country: binData?.country?.name || 'Unknown'
       };
-      
-      // Create binData object from the response
-      const binData = apiResponse.card ? {
-        number: {
-          length: cleanCardNumber.length,
-          luhn: true
-        },
-        scheme: apiResponse.card.type || '',
-        type: apiResponse.card.category || '',
-        brand: apiResponse.card.brand || '',
-        prepaid: false,
-        country: apiResponse.card.country ? {
-          numeric: '',
-          alpha2: apiResponse.card.country.code || '',
-          name: apiResponse.card.country.name || '',
-          emoji: apiResponse.card.country.emoji || '',
-          currency: apiResponse.card.country.currency || '',
-          latitude: apiResponse.card.country.location?.latitude || 0,
-          longitude: apiResponse.card.country.location?.longitude || 0
-        } : null,
-        bank: {
-          name: apiResponse.card.bank || '',
-          url: '',
-          phone: '',
-          city: ''
-        }
-      } : null;
       
       return {
         success: isSuccess,
-        message: apiResponse.message || (isSuccess ? 'Card is valid' : 'Card validation failed'),
+        message: message,
         details: detailsObj,
         binData: binData,
         code: status.toLowerCase(),
         status,
-        provider: 'chker.cc'
+        provider: 'luhn_check'
       };
     } catch (error: any) {
       // Get card brand info from card number
