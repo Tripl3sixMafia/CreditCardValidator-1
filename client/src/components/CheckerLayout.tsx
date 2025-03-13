@@ -44,12 +44,36 @@ export default function CheckerLayout() {
     setInput(e.target.value);
   };
   
-  const parseCardLine = (line: string): { number: string, month: string, year: string, cvv: string } | null => {
+  const parseCardLine = (line: string): { number: string, month: string, year: string, cvv: string, holder?: string, address?: string, city?: string, state?: string, zip?: string, country?: string, phone?: string, email?: string } | null => {
     line = line.trim();
     if (!line) return null;
     
-    // Try to parse in format number|month|year|cvv
+    // Try to parse in full format: number|expiry|cvv|name|address|city|state|zip|country|phone|email
     const pipeFormat = line.split('|');
+    
+    // Handle full payment details format
+    if (pipeFormat.length > 4) {
+      // Extract expiry from MM/YY format
+      const expiry = pipeFormat[1].split('/');
+      if (expiry.length !== 2) return null;
+      
+      return {
+        number: pipeFormat[0].trim(),
+        month: expiry[0].trim(),
+        year: expiry[1].trim(),
+        cvv: pipeFormat[2].trim(),
+        holder: pipeFormat[3]?.trim(),
+        address: pipeFormat[4]?.trim(),
+        city: pipeFormat[5]?.trim(),
+        state: pipeFormat[6]?.trim(),
+        zip: pipeFormat[7]?.trim(),
+        country: pipeFormat[8]?.trim(),
+        phone: pipeFormat[9]?.trim(),
+        email: pipeFormat[10]?.trim()
+      };
+    }
+    
+    // Handle basic format: number|month|year|cvv
     if (pipeFormat.length === 4) {
       return {
         number: pipeFormat[0].trim(),
@@ -79,9 +103,22 @@ export default function CheckerLayout() {
     return null;
   };
   
-  const checkCard = async (cardData: { number: string, month: string, year: string, cvv: string }): Promise<CardResult> => {
+  const checkCard = async (cardData: { 
+    number: string, 
+    month: string, 
+    year: string, 
+    cvv: string,
+    holder?: string,
+    address?: string,
+    city?: string,
+    state?: string,
+    zip?: string,
+    country?: string,
+    phone?: string,
+    email?: string
+  }): Promise<CardResult> => {
     try {
-      const { number, month, year, cvv } = cardData;
+      const { number, month, year, cvv, holder, address, city, state, zip, country, phone, email } = cardData;
       const formattedExpiry = `${month}/${year.length === 2 ? year : year.slice(-2)}`;
       
       // Prepare request data based on selected processor
@@ -89,9 +126,18 @@ export default function CheckerLayout() {
         number,
         expiry: formattedExpiry,
         cvv,
-        holder: 'Card Check',
+        holder: holder || 'Card Check',
         processor: processor === 'stripe-custom' ? 'stripe' : processor
       };
+      
+      // Add additional customer details if available
+      if (address) requestData.address = address;
+      if (city) requestData.city = city;
+      if (state) requestData.state = state;
+      if (zip) requestData.zip = zip;
+      if (country) requestData.country = country;
+      if (phone) requestData.phone = phone;
+      if (email) requestData.email = email;
       
       // Add stripe key if it's provided and the processor is stripe-custom
       if (processor === 'stripe-custom' && stripeKey.trim()) {
@@ -102,9 +148,13 @@ export default function CheckerLayout() {
       
       const data = await response.json();
       
+      // Format the card string to include all details for display
+      let cardString = `${number}|${month}|${year}|${cvv}`;
+      if (holder) cardString += `|${holder}`;
+      
       // Ensure we always get a status from the server or use a default
       return {
-        card: `${number}|${month}|${year}|${cvv}`,
+        card: cardString,
         message: data.message,
         code: data.code,
         status: data.status || (data.success ? 'LIVE' : 'DEAD'), // Ensure status is always present
@@ -338,7 +388,9 @@ export default function CheckerLayout() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold text-amber-400">Tripl3sixMafia Checker</h1>
-            <p className="text-zinc-400 text-sm">Enter your cards below (format: number|month|year|cvv)</p>
+            <p className="text-zinc-400 text-sm">Enter your cards below in any of these formats:</p>
+            <p className="text-zinc-500 text-xs mt-1">• Basic format: <span className="text-amber-400">number|month|year|cvv</span></p>
+            <p className="text-zinc-500 text-xs">• Full format: <span className="text-amber-400">number|MM/YY|cvv|name|address|city|state|zip|country|phone|email</span></p>
           </div>
           
           <div className="flex flex-col space-y-3">
@@ -425,7 +477,7 @@ export default function CheckerLayout() {
           value={input}
           onChange={handleInputChange}
           className="w-full bg-zinc-900 text-zinc-300 p-3 h-40 focus:outline-none font-mono text-sm"
-          placeholder="Enter cards in format:&#10;4242424242424242|01|2025|123&#10;5555555555554444|03|2024|321"
+          placeholder="Enter cards in format:&#10;4242424242424242|01|2025|123&#10;5555555555554444|11/28|321|John Doe|123 Main St|New York|NY|10001|USA|+1234567890|john@example.com"
         />
       </div>
       
