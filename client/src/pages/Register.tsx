@@ -38,14 +38,11 @@ export default function Register() {
     try {
       setIsLoading(true);
       
-      const response = await apiRequest('/api/register', {
-        method: 'POST',
-        data: {
-          name: data.name,
-          email: data.email,
-          password: data.password,
-          confirmPassword: data.confirmPassword,
-        },
+      const response = await apiRequest('POST', '/api/register', {
+        name: data.name,
+        email: data.email,
+        password: data.password,
+        confirmPassword: data.confirmPassword,
       });
       
       if (response.success) {
