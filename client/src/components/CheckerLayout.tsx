@@ -331,14 +331,14 @@ export default function CheckerLayout() {
             </button>
           </div>
         </div>
-        <div className="max-h-40 overflow-y-auto p-2">
+        <div className="h-40 overflow-y-auto p-2">
           {cards.length === 0 ? (
-            <div className="text-center text-zinc-500 py-2 text-sm">No cards</div>
+            <div className="flex items-center justify-center h-full text-center text-zinc-500 py-2 text-sm">No cards</div>
           ) : (
             <ul className="text-xs">
               {cards.map((card, index) => (
                 <li key={index} className="mb-3 last:mb-0">
-                  <div className="font-mono">
+                  <div className="font-mono truncate overflow-hidden">
                     <span className="text-zinc-400">{card.card.split('|')[0]}</span>
                     <span className="ml-2 text-zinc-500">{card.message}</span>
                   </div>
