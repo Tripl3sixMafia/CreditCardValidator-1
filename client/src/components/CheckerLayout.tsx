@@ -390,7 +390,8 @@ export default function CheckerLayout() {
             <h1 className="text-xl font-bold text-amber-400">Tripl3sixMafia Checker</h1>
             <p className="text-zinc-400 text-sm">Enter your cards below in any of these formats:</p>
             <p className="text-zinc-500 text-xs mt-1">• Basic format: <span className="text-amber-400">number|month|year|cvv</span></p>
-            <p className="text-zinc-500 text-xs">• Full format: <span className="text-amber-400">number|MM/YY|cvv|name|address|city|state|zip|country|phone|email</span></p>
+            <p className="text-zinc-500 text-xs">• Full format: <span className="text-amber-400">number|MM/YY|cvv|name|address|city</span></p>
+            <p className="text-zinc-500 text-xs"><span className="ml-9 text-amber-400">|state|zip|country|phone|email</span></p>
           </div>
           
           <div className="flex flex-col space-y-3">
@@ -477,7 +478,7 @@ export default function CheckerLayout() {
           value={input}
           onChange={handleInputChange}
           className="w-full bg-zinc-900 text-zinc-300 p-3 h-40 focus:outline-none font-mono text-sm"
-          placeholder="Enter cards in format:&#10;4242424242424242|01|2025|123&#10;5555555555554444|11/28|321|John Doe|123 Main St|New York|NY|10001|USA|+1234567890|john@example.com"
+          placeholder="Enter cards in format:&#10;4242424242424242|01|2025|123&#10;5555555555554444|11/28|321|John Doe|123 Main St|New York&#10;|NY|10001|USA|+1234567890|john@example.com"
         />
       </div>
       
