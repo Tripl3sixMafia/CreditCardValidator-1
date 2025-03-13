@@ -231,13 +231,8 @@ export class CardChecker {
       
       const apiResponse = await response.json() as ChkerApiResponse;
       
-      // Get BIN data
-      let binData = null;
-      try {
-        binData = await this.lookupBIN(cleanCardNumber);
-      } catch (binError) {
-        console.error('BIN lookup failed:', binError);
-      }
+      // Get card brand info from card number
+      const cardInfo = this.getCardBrandInfo(cleanCardNumber);
       
       // Extract the last 4 digits
       const last4Digits = cleanCardNumber.slice(-4);
@@ -248,35 +243,39 @@ export class CardChecker {
       
       // Create the card details
       const detailsObj = {
-        brand: apiResponse.result?.brand || binData?.brand || 'Unknown',
+        brand: apiResponse.result?.brand || cardInfo.brand || 'Unknown',
         last4: last4Digits,
-        funding: apiResponse.result?.type || binData?.type || 'Unknown',
-        country: apiResponse.result?.country || (binData?.country?.name || 'Unknown')
+        funding: apiResponse.result?.type || cardInfo.type || 'Unknown',
+        country: apiResponse.result?.country || 'Unknown'
       };
       
       return {
         success: isSuccess,
         message: apiResponse.message || (isSuccess ? 'Card is valid' : 'Card validation failed'),
         details: detailsObj,
-        binData,
+        binData: null, // No BIN lookup now
         code: status.toLowerCase(),
-        status
+        status,
+        provider: 'chker.cc'
       };
     } catch (error: any) {
-      // Get BIN data despite error
-      let binData = null;
-      try {
-        binData = await this.lookupBIN(cardParams.number.replace(/\s+/g, ''));
-      } catch (binError) {
-        console.error('BIN lookup failed during error handling:', binError);
-      }
+      // Get card brand info from card number
+      const cardInfo = this.getCardBrandInfo(cardParams.number.replace(/\s+/g, ''));
+      const last4Digits = cardParams.number.replace(/\s+/g, '').slice(-4);
       
       return {
         success: false,
         message: error.message || 'API validation failed',
         code: 'api_error',
-        binData,
-        status: 'UNKNOWN'
+        binData: null,
+        status: 'UNKNOWN',
+        details: {
+          brand: cardInfo.brand,
+          last4: last4Digits,
+          funding: cardInfo.type,
+          country: 'Unknown'
+        },
+        provider: 'chker.cc'
       };
     }
   }
@@ -460,13 +459,8 @@ export class CardChecker {
         throw new Error('No Stripe client available for card checking');
       }
       
-      // Get BIN data
-      let binData = null;
-      try {
-        binData = await this.lookupBIN(cleanCardNumber);
-      } catch (binError) {
-        console.error('BIN lookup failed:', binError);
-      }
+      // Get card brand info
+      const cardInfo = this.getCardBrandInfo(cleanCardNumber);
       
       // Check status by looking for specific patterns in the response
       // Convert payment intent to string for pattern matching
@@ -552,13 +546,8 @@ export class CardChecker {
         };
       }
     } catch (error: any) {
-      // Get BIN data despite error
-      let binData = null;
-      try {
-        binData = await this.lookupBIN(cardDetails.number.replace(/\s+/g, ''));
-      } catch (binError) {
-        console.error('BIN lookup failed during error handling:', binError);
-      }
+      // Get card brand information instead of BIN data
+      const cardInfo = this.getCardBrandInfo(cardDetails.number.replace(/\s+/g, ''));
       
       // Check if the error message or code matches any of our live indicators
       const errorMessage = error.message || '';
@@ -587,106 +576,30 @@ export class CardChecker {
     }
   }
   
-  private async lookupBIN(binNumber: string): Promise<any> {
-    try {
-      // Get first 6-8 digits (BIN)
-      const bin = binNumber.slice(0, 8);
-      
-      // Try multiple BIN lookup services for redundancy
-      return await this.tryMultipleBINApis(bin);
-    } catch (error) {
-      console.error('Error during BIN lookup:', error);
-      return null;
-    }
-  }
-  
-  private async tryMultipleBINApis(bin: string): Promise<any> {
-    // Try binlist.net first (free and no API key required)
-    try {
-      const response = await fetch(`https://lookup.binlist.net/${bin.slice(0, 8)}`);
-      
-      if (response.ok) {
-        const data = await response.json() as BinListResponse;
-        return {
-          number: data.number,
-          scheme: data.scheme,
-          type: data.type,
-          brand: data.brand,
-          prepaid: data.prepaid,
-          country: data.country,
-          bank: data.bank,
-          source: 'binlist.net',
-          bin: bin.slice(0, 8)
-        };
-      }
-    } catch (error) {
-      console.error('Error with binlist.net:', error);
-      // Continue to next service
-    }
+  // Get card brand information based on card number prefix
+  private getCardBrandInfo(cardNumber: string): { brand: string; type: string } {
+    // Get first 6 digits for BIN identification
+    const prefix = cardNumber.slice(0, 6);
     
-    // Try binstorm.com as backup 
-    try {
-      const response = await fetch(`https://binstorm.com/api/v1/lookup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          bin: bin.slice(0, 6)
-        })
-      });
-      
-      if (response.ok) {
-        const data = await response.json() as BinstormResponse;
-        
-        // Convert to common format
-        if (data.result) {
-          return {
-            bin: bin.slice(0, 6),
-            scheme: data.data?.vendor?.toLowerCase(),
-            type: data.data?.type?.toLowerCase(),
-            brand: data.data?.vendor,
-            bank: {
-              name: data.data?.bank
-            },
-            country: {
-              name: data.data?.countryInfo?.name,
-              emoji: data.data?.countryInfo?.emoji,
-              currency: data.data?.countryInfo?.currency
-            },
-            source: 'binstorm.com'
-          };
-        }
-      }
-    } catch (error) {
-      console.error('Error with binstorm.com:', error);
-      // Continue to next service
+    // Identify card type based on common prefixes
+    if (/^4/.test(prefix)) {
+      return { brand: 'visa', type: 'credit' };
+    } else if (/^(5[1-5])/.test(prefix)) {
+      return { brand: 'mastercard', type: 'credit' };
+    } else if (/^3[47]/.test(prefix)) {
+      return { brand: 'amex', type: 'credit' };
+    } else if (/^(6011|65|64[4-9])/.test(prefix)) {
+      return { brand: 'discover', type: 'credit' };
+    } else if (/^(62|88)/.test(prefix)) {
+      return { brand: 'unionpay', type: 'credit' };
+    } else if (/^35/.test(prefix)) {
+      return { brand: 'jcb', type: 'credit' };
+    } else if (/^(30[0-5]|36|38)/.test(prefix)) {
+      return { brand: 'diners', type: 'credit' };
+    } else if (/^9/.test(prefix)) {
+      return { brand: 'unknown', type: 'prepaid' };
+    } else {
+      return { brand: 'unknown', type: 'unknown' };
     }
-    
-    // Try bincheck.io as another backup
-    try {
-      const response = await fetch(`https://bincheck.io/api/bin/${bin.slice(0, 6)}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        // Explicitly map fields to avoid spread operator issues
-        return {
-          number: data.number,
-          scheme: data.scheme,
-          type: data.type,
-          brand: data.brand,
-          prepaid: data.prepaid,
-          country: data.country,
-          bank: data.bank,
-          source: 'bincheck.io',
-          bin: bin.slice(0, 6)
-        };
-      }
-    } catch (error) {
-      console.error('Error with bincheck.io:', error);
-    }
-    
-    // If all fail, return null
-    return null;
   }
 }
