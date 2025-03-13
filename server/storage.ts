@@ -45,6 +45,7 @@ export class MemStorage implements IStorage {
       emailVerified: false,
       telegramBotToken: null,
       telegramChatId: null,
+      stripeSecretKey: null,
       createdAt: new Date(),
     };
     

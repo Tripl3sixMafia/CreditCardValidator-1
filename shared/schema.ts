@@ -11,6 +11,7 @@ export const users = pgTable("users", {
   verificationToken: text("verification_token"),
   telegramBotToken: text("telegram_bot_token"),
   telegramChatId: text("telegram_chat_id"),
+  stripeSecretKey: text("stripe_secret_key"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -24,16 +25,17 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export const userRegistrationSchema = insertUserSchema.extend({
   password: z.string().min(8, "Password must be at least 8 characters long"),
   email: z.string().email("Invalid email address"),
-  passwordConfirm: z.string()
-}).refine(data => data.password === data.passwordConfirm, {
+  confirmPassword: z.string()
+}).refine(data => data.password === data.confirmPassword, {
   message: "Passwords do not match",
-  path: ["passwordConfirm"]
+  path: ["confirmPassword"]
 });
 
 // Extended schema for Telegram bot settings
 export const telegramBotSchema = z.object({
   telegramBotToken: z.string().min(20, "Invalid bot token"),
   telegramChatId: z.string().min(5, "Invalid chat ID"),
+  stripeSecretKey: z.string().optional(),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
