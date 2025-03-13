@@ -11,6 +11,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 const telegramBotSchema = z.object({
   telegramBotToken: z.string().min(20, 'Bot token must be at least 20 characters long'),
   telegramChatId: z.string().min(5, 'Chat ID must be at least 5 characters long'),
+  stripeSecretKey: z.string().optional(),
 });
 
 type TelegramBotSettings = z.infer<typeof telegramBotSchema>;
@@ -42,7 +43,8 @@ export default function Account() {
     resolver: zodResolver(telegramBotSchema),
     defaultValues: {
       telegramBotToken: '',
-      telegramChatId: ''
+      telegramChatId: '',
+      stripeSecretKey: ''
     }
   });
   
@@ -240,6 +242,25 @@ export default function Account() {
                     Use <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:text-amber-400">@userinfobot</a> to get your Chat ID
                   </p>
                 </div>
+
+                <div>
+                  <label htmlFor="stripeSecretKey" className="block text-sm font-medium text-zinc-300">
+                    Stripe Secret Key (Optional)
+                  </label>
+                  <input
+                    id="stripeSecretKey"
+                    type="text"
+                    {...register('stripeSecretKey')}
+                    className="mt-1 block w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-md shadow-sm placeholder-zinc-400 text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500"
+                    placeholder="sk_test_XXXXXXXXXXXXXXXXXXXXXXXX"
+                  />
+                  {errors.stripeSecretKey && (
+                    <p className="mt-1 text-sm text-red-500">{errors.stripeSecretKey.message}</p>
+                  )}
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Your personal Stripe secret key for card validation. Used with the <span className="font-mono text-amber-400">/sk</span> command in Telegram.
+                  </p>
+                </div>
               </div>
               
               <div>
@@ -268,6 +289,10 @@ export default function Account() {
                   <div className="grid grid-cols-5">
                     <div className="col-span-2 font-mono text-amber-400">/random us</div>
                     <div className="col-span-3 text-zinc-400">Generate 10 random cards from country (2-letter code)</div>
+                  </div>
+                  <div className="grid grid-cols-5">
+                    <div className="col-span-2 font-mono text-amber-400">/sk 4242...</div>
+                    <div className="col-span-3 text-zinc-400">Check card with your personal Stripe key</div>
                   </div>
                 </div>
               </div>

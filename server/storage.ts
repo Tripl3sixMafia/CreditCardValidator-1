@@ -82,7 +82,8 @@ export class MemStorage implements IStorage {
     const updatedUser = { 
       ...user, 
       telegramBotToken: settings.telegramBotToken, 
-      telegramChatId: settings.telegramChatId 
+      telegramChatId: settings.telegramChatId,
+      stripeSecretKey: settings.stripeSecretKey || user.stripeSecretKey 
     };
     
     this.users.set(userId, updatedUser);
