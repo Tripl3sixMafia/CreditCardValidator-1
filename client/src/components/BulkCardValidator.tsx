@@ -44,6 +44,21 @@ export default function BulkCardValidator() {
   };
   
   // Function to perform Luhn check (standard and Amex)
+  // Function to look up BIN data from the server
+  const lookupBIN = async (binNumber: string): Promise<any> => {
+    try {
+      const response = await fetch(`/api/bin-lookup?bin=${binNumber.substring(0, 6)}`);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("BIN lookup error:", error);
+      return null;
+    }
+  };
+  
   function isValidCreditCard(number: string): boolean {
     // Remove non-digit characters
     number = number.replace(/\D/g, '');

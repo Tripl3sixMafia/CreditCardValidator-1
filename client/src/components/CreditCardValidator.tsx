@@ -42,6 +42,21 @@ export default function CreditCardValidator() {
     setCardState((prev) => ({ ...prev, ...updates }));
   };
   
+  // Function to look up BIN data from the server
+  const lookupBIN = async (binNumber: string): Promise<BinData | null> => {
+    try {
+      const response = await fetch(`/api/bin-lookup?bin=${binNumber.substring(0, 6)}`);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("BIN lookup error:", error);
+      return null;
+    }
+  };
+  
   const handleValidateCard = async () => {
     setIsLoading(true);
     try {
