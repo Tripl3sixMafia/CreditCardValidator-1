@@ -9,12 +9,17 @@ export default function Navbar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [location] = useLocation();
   
+  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+
   // Check authentication status on mount and when location changes
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const response = await apiRequest('GET', '/api/me');
-        if (response.success && response.user) {
+        const userData = await response.json();
+        
+        if (userData && (userData.id || (userData.user && userData.user.id))) {
           setIsLoggedIn(true);
         } else {
           setIsLoggedIn(false);
@@ -26,6 +31,26 @@ export default function Navbar() {
     
     checkAuth();
   }, [location]);
+  
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await apiRequest('POST', '/api/logout');
+      setIsLoggedIn(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/me'] });
+      toast({
+        title: "Logout Successful",
+        description: "You have been logged out",
+      });
+      setLocation('/');
+    } catch (error) {
+      toast({
+        title: "Logout Failed",
+        description: "There was an error logging out",
+        variant: "destructive",
+      });
+    }
+  };
   
   return (
     <nav className="bg-zinc-900 border-b border-zinc-800 py-4">
@@ -69,6 +94,13 @@ export default function Navbar() {
                   Dashboard
                 </button>
               </Link>
+              
+              <button 
+                onClick={handleLogout}
+                className="text-zinc-400 hover:text-white text-sm"
+              >
+                Logout
+              </button>
             </>
           ) : (
             <>
@@ -119,6 +151,16 @@ export default function Navbar() {
                     Dashboard
                   </button>
                 </Link>
+                
+                <button 
+                  onClick={() => {
+                    handleLogout();
+                    setIsMenuOpen(false);
+                  }}
+                  className="block w-full text-left mt-3 text-sm text-zinc-400 hover:text-white"
+                >
+                  Logout
+                </button>
               </>
             ) : (
               <>
