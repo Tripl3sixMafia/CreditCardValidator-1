@@ -209,19 +209,21 @@ export class CardChecker {
       
       // Format expiry date to MM/YY
       const expMonth = cardParams.expMonth.toString().padStart(2, '0');
-      const expYear = cardParams.expYear.toString().slice(-2);
+      const expYear = cardParams.expYear.toString();
       
-      // Make API request to chker.cc
-      const response = await fetch('https://api.chker.cc/card', {
+      // Format the card details in the required pipe-delimited format
+      // Format: number|month|year|cvv
+      const cardData = `${cleanCardNumber}|${expMonth}|${expYear}|${cardParams.cvc}`;
+      
+      // Make API request to chkr.cc
+      const response = await fetch('https://api.chkr.cc/', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({
-          card: cleanCardNumber,
-          month: expMonth,
-          year: expYear,
-          cvv: cardParams.cvc
+        body: new URLSearchParams({
+          data: cardData,
+          charge: 'false'
         })
       });
       
@@ -229,31 +231,61 @@ export class CardChecker {
         throw new Error(`API error: ${response.status} ${response.statusText}`);
       }
       
-      const apiResponse = await response.json() as ChkerApiResponse;
+      // Parse the JSON string response
+      const responseText = await response.text();
+      const apiResponse = JSON.parse(responseText);
       
-      // Get card brand info from card number
-      const cardInfo = this.getCardBrandInfo(cleanCardNumber);
+      // Determine status based on the code
+      let status = 'UNKNOWN';
+      if (apiResponse.code === 0) status = 'DEAD';
+      else if (apiResponse.code === 1) status = 'LIVE';
+      else if (apiResponse.code === 2) status = 'UNKNOWN';
+      
+      const isSuccess = status === 'LIVE';
       
       // Extract the last 4 digits
       const last4Digits = cleanCardNumber.slice(-4);
       
-      // Determine status from API response
-      const status = apiResponse.result?.status || 'UNKNOWN';
-      const isSuccess = status === 'LIVE';
-      
       // Create the card details
       const detailsObj = {
-        brand: apiResponse.result?.brand || cardInfo.brand || 'Unknown',
+        brand: apiResponse.card?.brand || 'Unknown',
         last4: last4Digits,
-        funding: apiResponse.result?.type || cardInfo.type || 'Unknown',
-        country: apiResponse.result?.country || 'Unknown'
+        funding: apiResponse.card?.category || 'Unknown',
+        country: apiResponse.card?.country?.name || 'Unknown'
       };
+      
+      // Create binData object from the response
+      const binData = apiResponse.card ? {
+        number: {
+          length: cleanCardNumber.length,
+          luhn: true
+        },
+        scheme: apiResponse.card.type || '',
+        type: apiResponse.card.category || '',
+        brand: apiResponse.card.brand || '',
+        prepaid: false,
+        country: apiResponse.card.country ? {
+          numeric: '',
+          alpha2: apiResponse.card.country.code || '',
+          name: apiResponse.card.country.name || '',
+          emoji: apiResponse.card.country.emoji || '',
+          currency: apiResponse.card.country.currency || '',
+          latitude: apiResponse.card.country.location?.latitude || 0,
+          longitude: apiResponse.card.country.location?.longitude || 0
+        } : null,
+        bank: {
+          name: apiResponse.card.bank || '',
+          url: '',
+          phone: '',
+          city: ''
+        }
+      } : null;
       
       return {
         success: isSuccess,
         message: apiResponse.message || (isSuccess ? 'Card is valid' : 'Card validation failed'),
         details: detailsObj,
-        binData: null, // No BIN lookup now
+        binData: binData,
         code: status.toLowerCase(),
         status,
         provider: 'chker.cc'
