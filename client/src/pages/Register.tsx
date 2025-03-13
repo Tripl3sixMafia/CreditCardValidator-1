@@ -45,12 +45,14 @@ export default function Register() {
         confirmPassword: data.confirmPassword,
       });
       
-      if (response.success) {
+      const result = await response.json();
+      
+      if (result.success) {
         setIsSuccess(true);
       } else {
         toast({
           title: 'Registration failed',
-          description: response.message || 'An error occurred during registration',
+          description: result.message || 'An error occurred during registration',
           variant: 'destructive',
         });
       }

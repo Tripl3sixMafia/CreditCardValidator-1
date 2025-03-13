@@ -7,6 +7,7 @@ import Home from "@/pages/Home";
 import Register from "@/pages/Register";
 import Login from "@/pages/Login";
 import Account from "@/pages/Account";
+import VerifyEmail from "@/pages/VerifyEmail";
 
 function Router() {
   return (
@@ -15,6 +16,7 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/login" component={Login} />
       <Route path="/account" component={Account} />
+      <Route path="/verify-email" component={VerifyEmail} />
       <Route component={NotFound} />
     </Switch>
   );
