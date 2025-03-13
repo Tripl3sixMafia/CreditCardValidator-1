@@ -1,4 +1,4 @@
-import { CardState } from "@/types/card";
+import { CardState, ValidationErrors } from "@/types/card";
 
 // Card Type Definitions with expanded bank information
 export const cardTypes: Record<string, {
@@ -209,27 +209,21 @@ export const identifyCardType = (cardNumber: string): string => {
 // Validate the entire card
 export const validateCard = (cardState: CardState): {
   isValid: boolean;
-  errors: {
-    cardNumber?: string;
-    expiry?: string;
-    cvv?: string;
-  };
+  errors: ValidationErrors;
 } => {
-  const errors: {
-    cardNumber?: string;
-    expiry?: string;
-    cvv?: string;
-  } = {};
+  const errors: ValidationErrors = {};
   
   let isValid = true;
   const digits = cardState.number.replace(/\D/g, '');
   
   // Validate card number
   if (!digits) {
-    errors.cardNumber = 'Card number is required';
+    errors.number = 'Card number is required';
+    errors.cardNumber = 'Card number is required'; // For backward compatibility
     isValid = false;
   } else if (!luhnCheck(digits)) {
-    errors.cardNumber = 'Invalid card number';
+    errors.number = 'Invalid card number';
+    errors.cardNumber = 'Invalid card number'; // For backward compatibility
     isValid = false;
   }
   
@@ -237,7 +231,9 @@ export const validateCard = (cardState: CardState): {
   const cardType = cardState.cardType;
   if (cardType && cardTypes[cardType] && digits) {
     if (!cardTypes[cardType].lengths.includes(digits.length)) {
-      errors.cardNumber = `${cardTypes[cardType].logo} card should have ${cardTypes[cardType].lengths.join(' or ')} digits`;
+      const message = `${cardTypes[cardType].logo} card should have ${cardTypes[cardType].lengths.join(' or ')} digits`;
+      errors.number = message;
+      errors.cardNumber = message; // For backward compatibility
       isValid = false;
     }
   }
@@ -271,6 +267,62 @@ export const validateCard = (cardState: CardState): {
       errors.cvv = `CVV should be ${expectedLength} digits`;
       isValid = false;
     }
+  }
+  
+  // Validate card holder name
+  if (!cardState.holder) {
+    errors.holder = 'Card holder name is required';
+    isValid = false;
+  } else if (cardState.holder.length < 3) {
+    errors.holder = 'Card holder name is too short';
+    isValid = false;
+  }
+  
+  // Validate extended fields if provided
+  if (cardState.address === '') {
+    errors.address = 'Address is required';
+    isValid = false;
+  }
+  
+  if (cardState.city === '') {
+    errors.city = 'City is required';
+    isValid = false;
+  }
+  
+  if (cardState.state === '') {
+    errors.state = 'State/Province is required';
+    isValid = false;
+  }
+  
+  if (cardState.zip === '') {
+    errors.zip = 'ZIP/Postal code is required';
+    isValid = false;
+  } else if (cardState.zip && !/^\d{5}(-\d{4})?$/.test(cardState.zip)) {
+    errors.zip = 'Invalid ZIP/Postal code format';
+    isValid = false;
+  }
+  
+  if (cardState.country === '') {
+    errors.country = 'Country is required';
+    isValid = false;
+  }
+  
+  // Validate phone if provided
+  if (cardState.phone === '') {
+    errors.phone = 'Phone number is required';
+    isValid = false;
+  } else if (cardState.phone && !/^\+?[0-9\s\-()]{10,15}$/.test(cardState.phone)) {
+    errors.phone = 'Invalid phone number format';
+    isValid = false;
+  }
+  
+  // Validate email if provided
+  if (cardState.email === '') {
+    errors.email = 'Email is required';
+    isValid = false;
+  } else if (cardState.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cardState.email)) {
+    errors.email = 'Invalid email format';
+    isValid = false;
   }
   
   return { isValid, errors };

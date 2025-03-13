@@ -27,4 +27,5 @@ export interface ValidationErrors {
   country?: string;
   phone?: string;
   email?: string;
+  cardNumber?: string; // For backward compatibility
 }

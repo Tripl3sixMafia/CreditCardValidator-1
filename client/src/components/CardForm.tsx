@@ -100,8 +100,8 @@ export default function CardForm({
             {cardState.cardType && cardTypes[cardState.cardType]?.logo}
           </div>
         </div>
-        {errors.cardNumber && (
-          <p className="text-red-400 text-xs mt-1">{errors.cardNumber}</p>
+        {(errors.number || errors.cardNumber) && (
+          <p className="text-red-400 text-xs mt-1">{errors.number || errors.cardNumber}</p>
         )}
       </div>
 
@@ -118,6 +118,9 @@ export default function CardForm({
           value={cardState.holder}
           onChange={(e) => updateCardState({ holder: e.target.value })}
         />
+        {errors.holder && (
+          <p className="text-red-400 text-xs mt-1">{errors.holder}</p>
+        )}
       </div>
 
       {/* Expiry Date and CVV */}
