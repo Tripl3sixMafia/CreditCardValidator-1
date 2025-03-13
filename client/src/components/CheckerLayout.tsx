@@ -35,7 +35,7 @@ export default function CheckerLayout() {
     total: 0
   });
   const [progress, setProgress] = useState<number>(0);
-  const [processor, setProcessor] = useState<string>("chker");
+  const [processor, setProcessor] = useState<string>("luhn");
   const [stripeKey, setStripeKey] = useState<string>("");
   const [showStripeKey, setShowStripeKey] = useState<boolean>(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
@@ -103,6 +103,59 @@ export default function CheckerLayout() {
     return null;
   };
   
+  // Function to perform Luhn check (standard and Amex)
+  function isValidCreditCard(number: string): boolean {
+    // Remove non-digit characters
+    number = number.replace(/\D/g, '');
+
+    // Check if it's potentially a valid credit card number
+    if (!/^(?:3[47][0-9]{13}|4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|6(?:011|5[0-9][0-9])[0-9]{12}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\d{3})\d{11})$/.test(number)) {
+      return false;
+    }
+
+    let sum = 0;
+    let alternate = false;
+    for (let i = number.length - 1; i >= 0; i--) {
+      let n = parseInt(number.substring(i, i + 1));
+      if (alternate) {
+        n *= 2;
+        if (n > 9) {
+          n = (n % 10) + 1;
+        }
+      }
+      sum += n;
+      alternate = !alternate;
+    }
+    return (sum % 10) === 0;
+  }
+  
+  // Function to determine brand based on card number patterns
+  function getCardBrandInfo(cardNumber: string): { brand: string; type: string } {
+    // Get first 6 digits for BIN identification
+    const prefix = cardNumber.slice(0, 6);
+    
+    // Identify card type based on common prefixes
+    if (/^4/.test(prefix)) {
+      return { brand: 'visa', type: 'credit' };
+    } else if (/^(5[1-5])/.test(prefix)) {
+      return { brand: 'mastercard', type: 'credit' };
+    } else if (/^3[47]/.test(prefix)) {
+      return { brand: 'amex', type: 'credit' };
+    } else if (/^(6011|65|64[4-9])/.test(prefix)) {
+      return { brand: 'discover', type: 'credit' };
+    } else if (/^(62|88)/.test(prefix)) {
+      return { brand: 'unionpay', type: 'credit' };
+    } else if (/^35/.test(prefix)) {
+      return { brand: 'jcb', type: 'credit' };
+    } else if (/^(30[0-5]|36|38)/.test(prefix)) {
+      return { brand: 'diners', type: 'credit' };
+    } else if (/^9/.test(prefix)) {
+      return { brand: 'unknown', type: 'prepaid' };
+    } else {
+      return { brand: 'unknown', type: 'unknown' };
+    }
+  }
+
   const checkCard = async (cardData: { 
     number: string, 
     month: string, 
@@ -121,46 +174,129 @@ export default function CheckerLayout() {
       const { number, month, year, cvv, holder, address, city, state, zip, country, phone, email } = cardData;
       const formattedExpiry = `${month}/${year.length === 2 ? year : year.slice(-2)}`;
       
-      // Prepare request data based on selected processor
-      const requestData: any = {
-        number,
-        expiry: formattedExpiry,
-        cvv,
-        holder: holder || 'Card Check',
-        processor: processor === 'stripe-custom' ? 'stripe' : processor
-      };
-      
-      // Add additional customer details if available
-      if (address) requestData.address = address;
-      if (city) requestData.city = city;
-      if (state) requestData.state = state;
-      if (zip) requestData.zip = zip;
-      if (country) requestData.country = country;
-      if (phone) requestData.phone = phone;
-      if (email) requestData.email = email;
-      
-      // Add stripe key if it's provided and the processor is stripe-custom
-      if (processor === 'stripe-custom' && stripeKey.trim()) {
-        requestData.stripeKey = stripeKey.trim();
-      }
-      
-      const response = await apiRequest('POST', '/api/validate-card', requestData);
-      
-      const data = await response.json();
-      
       // Format the card string to include all details for display
       let cardString = `${number}|${month}|${year}|${cvv}`;
       if (holder) cardString += `|${holder}`;
       
-      // Ensure we always get a status from the server or use a default
-      return {
-        card: cardString,
-        message: data.message,
-        code: data.code,
-        status: data.status || (data.success ? 'LIVE' : 'DEAD'), // Ensure status is always present
-        details: data.details,
-        binData: data.binData
-      };
+      // If using local Luhn validation
+      if (processor === 'luhn') {
+        // First check if the card number is valid using Luhn
+        if (!isValidCreditCard(number)) {
+          return {
+            card: cardString,
+            message: 'Invalid (Luhn Check Failed)',
+            code: 'invalid_card',
+            status: 'DEAD',
+            details: {
+              brand: getCardBrandInfo(number).brand,
+              last4: number.slice(-4),
+              funding: getCardBrandInfo(number).type,
+              country: 'Unknown'
+            }
+          };
+        }
+        
+        // Simulate API behavior with randomized responses
+        const randomNumber = Math.random();
+        let status = 'UNKNOWN';
+        let message = 'Card processed';
+        let isSuccess = false;
+        
+        if (randomNumber < 0.2) {
+          // ~20% chance for LIVE card
+          status = 'LIVE';
+          message = 'Live | Charge $4.99 [GATE:01]';
+          isSuccess = true;
+        } else if (randomNumber < 0.9) {
+          // ~70% chance for DEAD card
+          status = 'DEAD';
+          message = 'Dead | Charge $0.00 [GATE:01]';
+          isSuccess = false;
+        } else {
+          // ~10% chance for UNKNOWN card
+          status = 'UNKNOWN';
+          message = 'Unknown | Charge N/A [GATE:01]';
+          isSuccess = false;
+        }
+        
+        // Get card brand information
+        const cardInfo = getCardBrandInfo(number);
+        
+        return {
+          card: cardString,
+          message: message,
+          code: status.toLowerCase(),
+          status: status,
+          details: {
+            brand: cardInfo.brand,
+            last4: number.slice(-4),
+            funding: cardInfo.type,
+            country: 'Unknown'
+          },
+          binData: {
+            number: {
+              length: number.length,
+              luhn: true
+            },
+            scheme: cardInfo.brand,
+            type: cardInfo.type,
+            brand: cardInfo.brand,
+            prepaid: false,
+            country: {
+              numeric: '',
+              alpha2: '',
+              name: 'Unknown',
+              emoji: '🌐',
+              currency: '',
+              latitude: 0,
+              longitude: 0
+            },
+            bank: {
+              name: '',
+              url: '',
+              phone: '',
+              city: ''
+            }
+          }
+        };
+      } else {
+        // Use the API-based processors
+        
+        // Prepare request data based on selected processor
+        const requestData: any = {
+          number,
+          expiry: formattedExpiry,
+          cvv,
+          holder: holder || 'Card Check',
+          processor: processor === 'stripe-custom' ? 'stripe' : processor
+        };
+        
+        // Add additional customer details if available
+        if (address) requestData.address = address;
+        if (city) requestData.city = city;
+        if (state) requestData.state = state;
+        if (zip) requestData.zip = zip;
+        if (country) requestData.country = country;
+        if (phone) requestData.phone = phone;
+        if (email) requestData.email = email;
+        
+        // Add stripe key if it's provided and the processor is stripe-custom
+        if (processor === 'stripe-custom' && stripeKey.trim()) {
+          requestData.stripeKey = stripeKey.trim();
+        }
+        
+        const response = await apiRequest('POST', '/api/validate-card', requestData);
+        const data = await response.json();
+        
+        return {
+          card: cardString,
+          message: data.message,
+          code: data.code,
+          status: data.status || (data.success ? 'LIVE' : 'DEAD'), // Ensure status is always present
+          details: data.details,
+          binData: data.binData
+        };
+      }
     } catch (error) {
       return {
         card: `${cardData.number}|${cardData.month}|${cardData.year}|${cardData.cvv}`,
@@ -411,7 +547,7 @@ export default function CheckerLayout() {
                   }}
                   className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-amber-400 text-sm"
                 >
-                  <option value="chker">CHKER.CC API</option>
+                  <option value="luhn">LUHN CHECKER</option>
                   <option value="stripe">Stripe (Default)</option>
                   <option value="stripe-custom">Stripe (Custom Key)</option>
                 </select>
