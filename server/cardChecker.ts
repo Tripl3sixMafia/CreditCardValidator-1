@@ -459,7 +459,15 @@ export class CardChecker {
         throw new Error('No Stripe client available for card checking');
       }
       
-      // Get card brand info
+      // Get BIN data and card brand info
+      let binData = null;
+      try {
+        binData = await this.lookupBIN(cleanCardNumber);
+      } catch (binError) {
+        console.error('BIN lookup failed:', binError);
+      }
+      
+      // As fallback, get card brand info from the number pattern
       const cardInfo = this.getCardBrandInfo(cleanCardNumber);
       
       // Check status by looking for specific patterns in the response
@@ -511,9 +519,10 @@ export class CardChecker {
           success: true,
           message,
           details: cardLog,
-          binData,
+          binData: binData, // Include BIN data for bank information
           code: paymentIntent.last_payment_error?.code || paymentIntent.status,
-          status: 'LIVE'
+          status: 'LIVE',
+          provider: 'stripe'
         };
       } 
       // Check for dead card indicators
@@ -529,9 +538,10 @@ export class CardChecker {
           success: false,
           message: paymentIntent.last_payment_error?.message || 'Card Declined',
           details: cardLog,
-          binData,
+          binData: binData, // Include BIN data for bank information
           code: paymentIntent.last_payment_error?.code || 'card_declined',
-          status: 'DEAD'
+          status: 'DEAD',
+          provider: 'stripe'
         };
       }
       // No specific pattern found, treat as UNKNOWN
@@ -540,13 +550,22 @@ export class CardChecker {
           success: false,
           message: paymentIntent.last_payment_error?.message || 'Unknown Card Status',
           details: cardLog,
-          binData,
+          binData: binData, // Include BIN data for bank information
           code: paymentIntent.last_payment_error?.code || paymentIntent.status,
-          status: 'UNKNOWN'
+          status: 'UNKNOWN',
+          provider: 'stripe'
         };
       }
     } catch (error: any) {
-      // Get card brand information instead of BIN data
+      // Get BIN data for the card
+      let binData = null;
+      try {
+        binData = await this.lookupBIN(cardDetails.number.replace(/\s+/g, ''));
+      } catch (binError) {
+        console.error('BIN lookup failed during error handling:', binError);
+      }
+      
+      // As fallback, get card brand info from the number pattern
       const cardInfo = this.getCardBrandInfo(cardDetails.number.replace(/\s+/g, ''));
       
       // Check if the error message or code matches any of our live indicators
@@ -600,6 +619,40 @@ export class CardChecker {
       return { brand: 'unknown', type: 'prepaid' };
     } else {
       return { brand: 'unknown', type: 'unknown' };
+    }
+  }
+  
+  // Simple BIN lookup to get bank information
+  private async lookupBIN(binNumber: string): Promise<any> {
+    try {
+      // Get first 6-8 digits (BIN)
+      const bin = binNumber.slice(0, 8);
+      
+      // Use binlist.net API - simple, free, and no API key required
+      const response = await fetch(`https://lookup.binlist.net/${bin}`);
+      
+      if (!response.ok) {
+        console.error(`BIN lookup failed: ${response.status} ${response.statusText}`);
+        return null;
+      }
+      
+      // Parse the response safely
+      const rawData: unknown = await response.json();
+      const data = rawData as Record<string, any>;
+      
+      // Return formatted bank info
+      return {
+        bin: bin,
+        scheme: data.scheme || '',
+        type: data.type || '',
+        brand: data.brand || '',
+        bank: data.bank?.name || 'Unknown Bank',
+        country: data.country?.name || 'Unknown Country',
+        source: 'binlist.net'
+      };
+    } catch (error) {
+      console.error('Error during BIN lookup:', error);
+      return null;
     }
   }
 }
