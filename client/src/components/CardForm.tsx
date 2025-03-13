@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CardState } from "@/types/card";
+import { CardState, ValidationErrors } from "@/types/card";
 import { 
   formatCardNumber, 
   formatExpiry, 
@@ -23,11 +23,8 @@ export default function CardForm({
   onValidate,
   isLoading = false
 }: CardFormProps) {
-  const [errors, setErrors] = useState<{
-    cardNumber?: string;
-    expiry?: string;
-    cvv?: string;
-  }>({});
+  const [showExtendedFields, setShowExtendedFields] = useState(false);
+  const [errors, setErrors] = useState<ValidationErrors>({});
 
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatCardNumber(e.target.value);
@@ -124,7 +121,7 @@ export default function CardForm({
       </div>
 
       {/* Expiry Date and CVV */}
-      <div className="grid grid-cols-2 gap-4 mb-5">
+      <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <label htmlFor="expiry-date" className="block text-zinc-300 text-sm font-medium mb-1">
             Expiry Date
@@ -160,6 +157,166 @@ export default function CardForm({
           )}
         </div>
       </div>
+
+      {/* Toggle Extended Fields */}
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => setShowExtendedFields(!showExtendedFields)}
+          className="w-full flex items-center justify-center text-amber-400 hover:text-amber-300 text-sm font-medium py-2 rounded-md transition-colors"
+        >
+          {showExtendedFields ? (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+              </svg>
+              Hide Extended Information
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+              Show Extended Information
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Extended Fields */}
+      {showExtendedFields && (
+        <div className="mb-4 space-y-3 border border-zinc-700 rounded-md p-3 bg-zinc-800/30">
+          <p className="text-xs text-amber-500 mb-2 font-medium">BILLING INFORMATION</p>
+          
+          {/* Address */}
+          <div>
+            <label htmlFor="address" className="block text-zinc-300 text-xs font-medium mb-1">
+              Address
+            </label>
+            <input 
+              type="text" 
+              id="address" 
+              className="w-full px-3 py-1.5 bg-zinc-800/70 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-white shadow-inner text-sm" 
+              placeholder="Street Address"
+              value={cardState.address || ''}
+              onChange={(e) => updateCardState({ address: e.target.value })}
+            />
+            {errors.address && (
+              <p className="text-red-400 text-xs mt-1">{errors.address}</p>
+            )}
+          </div>
+          
+          {/* City, State/Province */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="city" className="block text-zinc-300 text-xs font-medium mb-1">
+                City
+              </label>
+              <input 
+                type="text" 
+                id="city" 
+                className="w-full px-3 py-1.5 bg-zinc-800/70 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-white shadow-inner text-sm" 
+                placeholder="City"
+                value={cardState.city || ''}
+                onChange={(e) => updateCardState({ city: e.target.value })}
+              />
+              {errors.city && (
+                <p className="text-red-400 text-xs mt-1">{errors.city}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="state" className="block text-zinc-300 text-xs font-medium mb-1">
+                State/Province
+              </label>
+              <input 
+                type="text" 
+                id="state" 
+                className="w-full px-3 py-1.5 bg-zinc-800/70 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-white shadow-inner text-sm" 
+                placeholder="State/Province"
+                value={cardState.state || ''}
+                onChange={(e) => updateCardState({ state: e.target.value })}
+              />
+              {errors.state && (
+                <p className="text-red-400 text-xs mt-1">{errors.state}</p>
+              )}
+            </div>
+          </div>
+          
+          {/* Zip/Postal Code, Country */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="zip" className="block text-zinc-300 text-xs font-medium mb-1">
+                ZIP/Postal Code
+              </label>
+              <input 
+                type="text" 
+                id="zip" 
+                className="w-full px-3 py-1.5 bg-zinc-800/70 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-white shadow-inner text-sm" 
+                placeholder="ZIP/Postal Code"
+                value={cardState.zip || ''}
+                onChange={(e) => updateCardState({ zip: e.target.value })}
+              />
+              {errors.zip && (
+                <p className="text-red-400 text-xs mt-1">{errors.zip}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="country" className="block text-zinc-300 text-xs font-medium mb-1">
+                Country
+              </label>
+              <input 
+                type="text" 
+                id="country" 
+                className="w-full px-3 py-1.5 bg-zinc-800/70 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-white shadow-inner text-sm" 
+                placeholder="Country"
+                value={cardState.country || ''}
+                onChange={(e) => updateCardState({ country: e.target.value })}
+              />
+              {errors.country && (
+                <p className="text-red-400 text-xs mt-1">{errors.country}</p>
+              )}
+            </div>
+          </div>
+          
+          <p className="text-xs text-amber-500 mt-4 mb-2 font-medium">CONTACT INFORMATION</p>
+          
+          {/* Phone, Email */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="phone" className="block text-zinc-300 text-xs font-medium mb-1">
+                Phone
+              </label>
+              <input 
+                type="tel" 
+                id="phone" 
+                className="w-full px-3 py-1.5 bg-zinc-800/70 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-white shadow-inner text-sm" 
+                placeholder="Phone Number"
+                value={cardState.phone || ''}
+                onChange={(e) => updateCardState({ phone: e.target.value })}
+              />
+              {errors.phone && (
+                <p className="text-red-400 text-xs mt-1">{errors.phone}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="email" className="block text-zinc-300 text-xs font-medium mb-1">
+                Email
+              </label>
+              <input 
+                type="email" 
+                id="email" 
+                className="w-full px-3 py-1.5 bg-zinc-800/70 border border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-white shadow-inner text-sm" 
+                placeholder="Email Address"
+                value={cardState.email || ''}
+                onChange={(e) => updateCardState({ email: e.target.value })}
+              />
+              {errors.email && (
+                <p className="text-red-400 text-xs mt-1">{errors.email}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <button 
         type="submit" 
