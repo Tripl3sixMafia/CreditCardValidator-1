@@ -21,8 +21,8 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 // Email verification
 export async function sendVerificationEmail(email: string, token: string) {
-  // For development, log the verification link instead of sending an email
-  const verificationLink = `http://localhost:5000/api/verify-email?token=${token}`;
+  // Use client-side route for better UX
+  const verificationLink = `http://localhost:5000/verify-email?token=${token}`;
   
   // In production, you would configure a real email service
   console.log(`Verification link (for ${email}): ${verificationLink}`);
