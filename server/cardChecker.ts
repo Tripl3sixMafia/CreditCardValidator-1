@@ -15,6 +15,7 @@ export interface CheckerResponse {
   binData?: any;
   code?: string;
   status?: string; // LIVE, DEAD, UNKNOWN
+  provider?: string; // Added to track which service provided the result
 }
 
 // ChkerAPI response interface
@@ -30,6 +31,54 @@ export interface ChkerApiResponse {
     country?: string;
     bank?: string;
     status?: string; // LIVE, DEAD, UNKNOWN
+  };
+}
+
+// BinList API response interface
+export interface BinListResponse {
+  number?: {
+    length?: number;
+    luhn?: boolean;
+  };
+  scheme?: string;
+  type?: string;
+  brand?: string;
+  prepaid?: boolean;
+  country?: {
+    numeric?: string;
+    alpha2?: string;
+    name?: string;
+    emoji?: string;
+    currency?: string;
+    latitude?: number;
+    longitude?: number;
+  };
+  bank?: {
+    name?: string;
+    url?: string;
+    phone?: string;
+    city?: string;
+  };
+}
+
+// Binstorm API response interface
+export interface BinstormResponse {
+  result?: boolean;
+  message?: string;
+  data?: {
+    bin?: string;
+    vendor?: string;
+    type?: string;
+    level?: string;
+    bank?: string;
+    country?: string;
+    countryInfo?: {
+      name?: string;
+      emoji?: string;
+      currency?: string;
+      latitude?: number;
+      longitude?: number;
+    };
   };
 }
 
@@ -76,10 +125,23 @@ const DEAD_CARD_INDICATORS = [
   'invalid_account'
 ];
 
+// Define processor types
+export type ProcessorType = 'stripe' | 'chker' | 'braintree' | 'authorize' | 'toss' | 'bin' | 'luhn';
+
 export class CardChecker {
   private stripe?: Stripe; // Make optional as it's only initialized with secret keys
   private publicKey: string = "pk_live_B3imPhpDAew8RzuhaKclN4Kd"; // Default public key
   private userStripeKey?: string; // User provided Stripe secret key
+  
+  // API keys for different payment processors
+  private apiKeys: Record<string, string> = {
+    stripe: "",
+    braintree: "",
+    authorize: ""
+  };
+  
+  // Track which processors are available
+  private availableProcessors: ProcessorType[] = ['chker', 'bin', 'luhn'];
   
   constructor(stripeKey: string) {
     // If no key is provided, use the default public key
@@ -90,10 +152,12 @@ export class CardChecker {
     
     // Store the key for API calls
     this.publicKey = keyToUse;
+    this.apiKeys.stripe = keyToUse;
     
     if (!isPublicKey) {
       // For secret keys, initialize Stripe normally (for Node.js server-side use)
       this.stripe = new Stripe(keyToUse, { apiVersion: '2023-10-16' as any });
+      this.availableProcessors.push('stripe');
     }
     
     // For public keys, we don't initialize the Stripe object
@@ -104,6 +168,32 @@ export class CardChecker {
   // Set user provided Stripe key (for custom checker)
   setUserStripeKey(key: string) {
     this.userStripeKey = key;
+    
+    // If valid key format, add to available processors
+    if (key && (key.startsWith('pk_') || key.startsWith('sk_'))) {
+      this.apiKeys.stripe = key;
+      if (!this.availableProcessors.includes('stripe')) {
+        this.availableProcessors.push('stripe');
+      }
+    }
+  }
+  
+  // Set API keys for other processors
+  setApiKey(processor: string, key: string) {
+    if (key) {
+      this.apiKeys[processor] = key;
+      if (processor === 'braintree' && !this.availableProcessors.includes('braintree')) {
+        this.availableProcessors.push('braintree');
+      }
+      else if (processor === 'authorize' && !this.availableProcessors.includes('authorize')) {
+        this.availableProcessors.push('authorize');
+      }
+    }
+  }
+  
+  // Get a list of available processors
+  getAvailableProcessors(): ProcessorType[] {
+    return this.availableProcessors;
   }
   
   // Check card using the external API.CHKER.CC service
@@ -502,18 +592,101 @@ export class CardChecker {
       // Get first 6-8 digits (BIN)
       const bin = binNumber.slice(0, 8);
       
-      // Use binlist.net API
-      const response = await fetch(`https://lookup.binlist.net/${bin}`);
-      
-      if (!response.ok) {
-        console.error(`BIN lookup failed: ${response.status} ${response.statusText}`);
-        return null;
-      }
-      
-      return await response.json();
+      // Try multiple BIN lookup services for redundancy
+      return await this.tryMultipleBINApis(bin);
     } catch (error) {
       console.error('Error during BIN lookup:', error);
       return null;
     }
+  }
+  
+  private async tryMultipleBINApis(bin: string): Promise<any> {
+    // Try binlist.net first (free and no API key required)
+    try {
+      const response = await fetch(`https://lookup.binlist.net/${bin.slice(0, 8)}`);
+      
+      if (response.ok) {
+        const data = await response.json() as BinListResponse;
+        return {
+          number: data.number,
+          scheme: data.scheme,
+          type: data.type,
+          brand: data.brand,
+          prepaid: data.prepaid,
+          country: data.country,
+          bank: data.bank,
+          source: 'binlist.net',
+          bin: bin.slice(0, 8)
+        };
+      }
+    } catch (error) {
+      console.error('Error with binlist.net:', error);
+      // Continue to next service
+    }
+    
+    // Try binstorm.com as backup 
+    try {
+      const response = await fetch(`https://binstorm.com/api/v1/lookup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          bin: bin.slice(0, 6)
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json() as BinstormResponse;
+        
+        // Convert to common format
+        if (data.result) {
+          return {
+            bin: bin.slice(0, 6),
+            scheme: data.data?.vendor?.toLowerCase(),
+            type: data.data?.type?.toLowerCase(),
+            brand: data.data?.vendor,
+            bank: {
+              name: data.data?.bank
+            },
+            country: {
+              name: data.data?.countryInfo?.name,
+              emoji: data.data?.countryInfo?.emoji,
+              currency: data.data?.countryInfo?.currency
+            },
+            source: 'binstorm.com'
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Error with binstorm.com:', error);
+      // Continue to next service
+    }
+    
+    // Try bincheck.io as another backup
+    try {
+      const response = await fetch(`https://bincheck.io/api/bin/${bin.slice(0, 6)}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Explicitly map fields to avoid spread operator issues
+        return {
+          number: data.number,
+          scheme: data.scheme,
+          type: data.type,
+          brand: data.brand,
+          prepaid: data.prepaid,
+          country: data.country,
+          bank: data.bank,
+          source: 'bincheck.io',
+          bin: bin.slice(0, 6)
+        };
+      }
+    } catch (error) {
+      console.error('Error with bincheck.io:', error);
+    }
+    
+    // If all fail, return null
+    return null;
   }
 }
